@@ -28,10 +28,8 @@ const menu = [
   { icon: "♙", name: "Ứng viên", href: "/admin/candidates" },
   { icon: "▤", name: "Quản lý công việc", href: "/admin/jobs" },
   { icon: "▥", name: "Tiến độ tuyển dụng", href: "/admin/pipeline" },
-  { icon: "▦", name: "Lịch phỏng vấn", href: "/admin/interviews" },
   { icon: "✉", name: "Dịch vụ CV", href: "/admin/cv-requests" },
   { icon: "▣", name: "Quản lý CV", href: "/admin/cv-management" },
-  { icon: "▧", name: "Báo cáo", href: "/admin/reports" },
 ];
 
 const stages = [
