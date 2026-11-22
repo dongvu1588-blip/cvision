@@ -2,132 +2,120 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+function getAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    throw new Error("Thiếu cấu hình Supabase server.");
+  }
+
+  return createClient(url, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
 async function verifyAdmin(request: NextRequest) {
   const authorization = request.headers.get("authorization");
 
-  if (!authorization?.startsWith("Bearer ")) {
+  const token = authorization?.startsWith("Bearer ")
+    ? authorization.slice(7)
+    : "";
+
+  if (!token) {
     return {
       error: "Bạn chưa đăng nhập.",
-      status: 401,
-      adminClient: null,
-      userId: null,
+      status: 401 as const,
     };
   }
 
-  const token = authorization.replace("Bearer ", "");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  if (!supabaseUrl || !anonKey || !serviceKey) {
+  if (!url || !anonKey) {
     return {
-      error: "Thiếu cấu hình Supabase trong file .env.local.",
-      status: 500,
-      adminClient: null,
-      userId: null,
+      error: "Thiếu cấu hình Supabase.",
+      status: 500 as const,
     };
   }
 
-  const authClient = createClient(supabaseUrl, anonKey, {
+  const authClient = createClient(url, anonKey, {
     auth: {
-      persistSession: false,
       autoRefreshToken: false,
+      persistSession: false,
     },
   });
 
-  const { data: userData, error: authError } =
-    await authClient.auth.getUser(token);
+  const { data, error } = await authClient.auth.getUser(token);
 
-  if (authError || !userData.user) {
+  if (error || !data.user) {
     return {
       error: "Phiên đăng nhập không hợp lệ.",
-      status: 401,
-      adminClient: null,
-      userId: null,
+      status: 401 as const,
     };
   }
 
-  const adminClient = createClient(supabaseUrl, serviceKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  const adminClient = getAdminClient();
 
-  const { data: profile, error: profileError } = await adminClient
-    .from("profiles")
-    .select("role")
-    .eq("id", userData.user.id)
-    .single();
+  const { data: profile, error: profileError } =
+    await adminClient
+      .from("profiles")
+      .select("id, role")
+      .eq("id", data.user.id)
+      .single();
 
   if (profileError || profile?.role !== "admin") {
     return {
-      error: "Bạn không có quyền thực hiện thao tác này.",
-      status: 403,
-      adminClient: null,
-      userId: null,
+      error: "Chỉ Admin mới được quản lý tài khoản.",
+      status: 403 as const,
     };
   }
 
   return {
-    error: null,
-    status: 200,
     adminClient,
-    userId: userData.user.id,
+    user: data.user,
   };
 }
 
-// GET: Lấy danh sách nhân viên và trạng thái tài khoản
+// Lấy danh sách tài khoản nhân viên
 export async function GET(request: NextRequest) {
   try {
     const auth = await verifyAdmin(request);
 
-    if (auth.error || !auth.adminClient) {
+    if ("error" in auth) {
       return NextResponse.json(
         { error: auth.error },
         { status: auth.status }
       );
     }
 
-    const { data: profiles, error: profileError } = await auth.adminClient
+    const { data, error } = await auth.adminClient
       .from("profiles")
-      .select("id, full_name, role, created_at")
-      .order("created_at", { ascending: false });
+      .select("id, full_name, role")
+      .in("role", ["admin", "recruiter"])
+      .order("full_name", { ascending: true });
 
-    if (profileError) throw profileError;
-
-    const { data: authUsers, error: authUsersError } =
-      await auth.adminClient.auth.admin.listUsers({
-        page: 1,
-        perPage: 1000,
-      });
-
-    if (authUsersError) throw authUsersError;
-
-    const users = (profiles || []).map((profile) => {
-      const authUser = authUsers.users.find(
-        (user) => user.id === profile.id
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 500 }
       );
+    }
 
-      const bannedUntil = authUser?.banned_until || null;
-
-      const isBanned =
-        !!bannedUntil &&
-        new Date(bannedUntil).getTime() > Date.now();
-
-      return {
-        ...profile,
-        is_banned: isBanned,
-        banned_until: bannedUntil,
-        email: authUser?.email || "",
-      };
+    return NextResponse.json({
+      users: data || [],
     });
-
-    return NextResponse.json({ users });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Lỗi máy chủ.";
+      error instanceof Error
+        ? error.message
+        : "Lỗi máy chủ.";
 
     return NextResponse.json(
       { error: message },
@@ -136,12 +124,12 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: Tạo tài khoản Recruiter
+// Tạo tài khoản nhân viên mới
 export async function POST(request: NextRequest) {
   try {
     const auth = await verifyAdmin(request);
 
-    if (auth.error || !auth.adminClient) {
+    if ("error" in auth) {
       return NextResponse.json(
         { error: auth.error },
         { status: auth.status }
@@ -150,25 +138,34 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
+    const fullName = String(body.full_name || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "");
-    const fullName = String(body.full_name || "").trim();
 
-    if (!email || !password || !fullName) {
+    const role =
+      body.role === "admin" ? "admin" : "recruiter";
+
+    if (!fullName || !email || !password) {
       return NextResponse.json(
-        { error: "Vui lòng nhập đầy đủ họ tên, email và mật khẩu." },
+        {
+          error:
+            "Vui lòng nhập đầy đủ họ tên, email và mật khẩu.",
+        },
         { status: 400 }
       );
     }
 
     if (password.length < 8) {
       return NextResponse.json(
-        { error: "Mật khẩu phải có ít nhất 8 ký tự." },
+        {
+          error: "Mật khẩu phải có ít nhất 8 ký tự.",
+        },
         { status: 400 }
       );
     }
 
-    const { data: newUser, error: createError } =
+    // Tạo tài khoản trong Supabase Auth
+    const { data: created, error: createError } =
       await auth.adminClient.auth.admin.createUser({
         email,
         password,
@@ -178,156 +175,64 @@ export async function POST(request: NextRequest) {
         },
       });
 
-    if (createError || !newUser.user) {
+    if (createError || !created.user) {
       return NextResponse.json(
-        { error: createError?.message || "Không tạo được tài khoản." },
+        {
+          error:
+            createError?.message ||
+            "Không tạo được tài khoản.",
+        },
         { status: 400 }
       );
     }
 
-    const { error: insertError } = await auth.adminClient
+    // Lưu thông tin nhân viên vào bảng profiles
+    const { error: profileError } = await auth.adminClient
       .from("profiles")
-      .insert({
-        id: newUser.user.id,
-        full_name: fullName,
-        role: "recruiter",
-      });
+      .upsert(
+        {
+          id: created.user.id,
+          full_name: fullName,
+          role: role,
+        },
+        {
+          onConflict: "id",
+        }
+      );
 
-    if (insertError) {
-      await auth.adminClient.auth.admin.deleteUser(newUser.user.id);
+    // Nếu lưu profiles thất bại thì xóa tài khoản vừa tạo
+    if (profileError) {
+      await auth.adminClient.auth.admin.deleteUser(
+        created.user.id
+      );
 
       return NextResponse.json(
-        { error: "Không tạo được hồ sơ nhân viên: " + insertError.message },
+        {
+          error:
+            "Tạo hồ sơ nhân viên thất bại: " +
+            profileError.message,
+        },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({
-      message: "Tạo tài khoản Recruiter thành công!",
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Lỗi máy chủ.";
-
     return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
-  }
-}
-
-// PATCH: Sửa tên hoặc khóa/mở khóa tài khoản Recruiter
-export async function PATCH(request: NextRequest) {
-  try {
-    const auth = await verifyAdmin(request);
-
-    if (auth.error || !auth.adminClient || !auth.userId) {
-      return NextResponse.json(
-        { error: auth.error },
-        { status: auth.status }
-      );
-    }
-
-    const body = await request.json();
-    const userId = String(body.user_id || "").trim();
-    const action = String(body.action || "");
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Thiếu mã nhân viên." },
-        { status: 400 }
-      );
-    }
-
-    if (userId === auth.userId) {
-      return NextResponse.json(
-        { error: "Bạn không thể tự khóa hoặc sửa tài khoản Admin đang đăng nhập." },
-        { status: 400 }
-      );
-    }
-
-    const { data: targetProfile, error: targetError } =
-      await auth.adminClient
-        .from("profiles")
-        .select("id, role")
-        .eq("id", userId)
-        .single();
-
-    if (targetError || !targetProfile) {
-      return NextResponse.json(
-        { error: "Không tìm thấy nhân viên." },
-        { status: 404 }
-      );
-    }
-
-    if (targetProfile.role !== "recruiter") {
-      return NextResponse.json(
-        { error: "Chỉ có thể thao tác với tài khoản Recruiter." },
-        { status: 403 }
-      );
-    }
-
-    if (action === "update_name") {
-      const fullName = String(body.full_name || "").trim();
-
-      if (!fullName) {
-        return NextResponse.json(
-          { error: "Họ tên không được để trống." },
-          { status: 400 }
-        );
-      }
-
-      const { error: updateProfileError } = await auth.adminClient
-        .from("profiles")
-        .update({ full_name: fullName })
-        .eq("id", userId);
-
-      if (updateProfileError) throw updateProfileError;
-
-      const { data: authUserData } =
-        await auth.adminClient.auth.admin.getUserById(userId);
-
-      const oldMetadata = authUserData.user?.user_metadata || {};
-
-      const { error: updateAuthError } =
-        await auth.adminClient.auth.admin.updateUserById(userId, {
-          user_metadata: {
-            ...oldMetadata,
-            full_name: fullName,
-          },
-        });
-
-      if (updateAuthError) throw updateAuthError;
-
-      return NextResponse.json({
-        message: "Cập nhật họ tên thành công.",
-      });
-    }
-
-    if (action === "toggle_status") {
-      const shouldBan = body.is_banned === true;
-
-      const { error: banError } =
-        await auth.adminClient.auth.admin.updateUserById(userId, {
-          ban_duration: shouldBan ? "876000h" : "none",
-        });
-
-      if (banError) throw banError;
-
-      return NextResponse.json({
-        message: shouldBan
-          ? "Đã khóa tài khoản Recruiter."
-          : "Đã mở khóa tài khoản Recruiter.",
-      });
-    }
-
-    return NextResponse.json(
-      { error: "Thao tác không hợp lệ." },
-      { status: 400 }
+      {
+        message: "Tạo tài khoản nhân viên thành công.",
+        user: {
+          id: created.user.id,
+          email: email,
+          full_name: fullName,
+          role: role,
+        },
+      },
+      { status: 201 }
     );
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Lỗi máy chủ.";
+      error instanceof Error
+        ? error.message
+        : "Lỗi máy chủ.";
 
     return NextResponse.json(
       { error: message },
