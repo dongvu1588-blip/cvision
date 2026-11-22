@@ -70,6 +70,7 @@ export default function PipelinePage() {
   const [jobId, setJobId] = useState("");
   const [search, setSearch] = useState("");
   const [openingCv, setOpeningCv] = useState<string | null>(null);
+  const [isListExpanded, setIsListExpanded] = useState(false);
 
   const isAdmin = currentRole === "admin";
 
@@ -422,14 +423,31 @@ export default function PipelinePage() {
         <section className="overflow-hidden rounded-2xl border border-sky-100 bg-white/95 shadow-sm">
           <div className="border-b border-sky-100 bg-gradient-to-r from-white to-sky-50/80 p-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold text-slate-800">
-                  Danh sách hồ sơ tuyển dụng
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {isAdmin
-                    ? `Hiển thị ${filtered.length} / ${applications.length} hồ sơ`
-                    : `Hiển thị ${visibleApplications.length} hồ sơ được phân công cho bạn`}
+              <div className="min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setIsListExpanded((current) => !current)}
+                  aria-expanded={isListExpanded}
+                  className="group flex items-center gap-3 text-left"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-lg font-bold text-sky-700 transition group-hover:bg-sky-200">
+                    {isListExpanded ? "−" : "+"}
+                  </span>
+                  <span>
+                    <span className="block text-xl font-bold text-slate-800">
+                      Danh sách hồ sơ tuyển dụng
+                    </span>
+                    <span className="mt-1 block text-sm text-slate-500">
+                      {isAdmin
+                        ? `Hiển thị ${filtered.length} / ${applications.length} hồ sơ`
+                        : `Hiển thị ${visibleApplications.length} hồ sơ được phân công cho bạn`}
+                    </span>
+                  </span>
+                </button>
+                <p className="mt-2 text-xs font-medium text-sky-600">
+                  {isListExpanded
+                    ? "Nhấn để thu gọn danh sách"
+                    : "Nhấn vào đây để xem chi tiết hồ sơ"}
                 </p>
               </div>
 
@@ -442,20 +460,23 @@ export default function PipelinePage() {
               </button>
             </div>
 
-            <div className="relative mt-5">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-500">
-                🔎
-              </span>
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Tìm ứng viên, vị trí, công ty..."
-                className="w-full rounded-xl border border-sky-100 bg-white py-3 pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-              />
-            </div>
           </div>
 
-          <div className="space-y-4 p-4 md:p-6">
+          {isListExpanded && (
+            <>
+              <div className="relative border-b border-sky-50 px-4 pb-5 md:px-6">
+                <span className="absolute left-7 top-1/2 -translate-y-1/2 text-sky-500 md:left-9">
+                  🔎
+                </span>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Tìm ứng viên, vị trí, công ty..."
+                  className="w-full rounded-xl border border-sky-100 bg-white py-3 pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                />
+              </div>
+
+              <div className="space-y-4 p-4 md:p-6">
             {loading ? (
               <div className="py-12 text-center">
                 <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-sky-100 border-t-sky-500" />
@@ -758,8 +779,10 @@ export default function PipelinePage() {
                   </article>
                 );
               })
-            )}
-          </div>
+              )}
+              </div>
+            </>
+          )}
         </section>
 
         <p className="mt-6 text-center text-xs text-slate-400">
