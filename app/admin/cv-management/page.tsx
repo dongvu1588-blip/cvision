@@ -15,7 +15,7 @@ type ManagedCV = {
   candidate_name: string;
   file_path: string;
   uploaded_by: string;
-  status: "Được duyệt" | "NG";
+  status: CVStatus;
   created_at: string;
 };
 
@@ -28,7 +28,43 @@ const menu = [
   { icon: "▣", name: "Quản lý CV", href: "/admin/cv-management" },
 ];
 
+type CVStatus =
+  | "Được duyệt"
+  | "NG"
+  | "Hẹn phỏng vấn"
+  | "Đàm phán lương"
+  | "Nhận Offer"
+  | "Đi làm";
+
+const CV_STATUSES: CVStatus[] = [
+  "Được duyệt",
+  "NG",
+  "Hẹn phỏng vấn",
+  "Đàm phán lương",
+  "Nhận Offer",
+  "Đi làm",
+];
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+function getStatusClass(status: CVStatus) {
+  switch (status) {
+    case "Được duyệt":
+      return "bg-emerald-50 text-emerald-700";
+    case "NG":
+      return "bg-rose-50 text-rose-700";
+    case "Hẹn phỏng vấn":
+      return "bg-blue-50 text-blue-700";
+    case "Đàm phán lương":
+      return "bg-amber-50 text-amber-700";
+    case "Nhận Offer":
+      return "bg-violet-50 text-violet-700";
+    case "Đi làm":
+      return "bg-cyan-50 text-cyan-700";
+    default:
+      return "bg-slate-50 text-slate-700";
+  }
+}
 
 export default function CVManagementPage() {
   const router = useRouter();
@@ -190,7 +226,7 @@ export default function CVManagementPage() {
     }
   }
 
-  async function updateStatus(row: ManagedCV, status: "Được duyệt" | "NG") {
+  async function updateStatus(row: ManagedCV, status: CVStatus) {
     setError("");
     setSuccess("");
     const { error: updateError } = await supabase
@@ -301,7 +337,7 @@ export default function CVManagementPage() {
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm tên ứng viên..." className="rounded-xl border border-sky-100 bg-sky-50/50 px-4 py-2.5 text-sm outline-none focus:border-sky-400 focus:bg-white sm:w-64" />
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-xl border border-sky-100 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none focus:border-sky-400">
-                <option>Tất cả</option><option>Được duyệt</option><option>NG</option>
+                <option value="Tất cả">Tất cả</option>{CV_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
             </div>
           </div>
@@ -316,7 +352,7 @@ export default function CVManagementPage() {
                       <td className="px-4 py-4 font-semibold text-slate-700">{row.candidate_name}</td>
                       <td className="px-4 py-4 text-slate-500">{new Date(row.created_at).toLocaleString("vi-VN")}</td>
                       <td className="px-4 py-4">
-                        {isAdmin ? <select value={row.status} onChange={(e) => updateStatus(row, e.target.value as "Được duyệt" | "NG")} className="rounded-lg border border-sky-100 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-sky-400"><option value="Được duyệt">Được duyệt</option><option value="NG">NG</option></select> : <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${row.status === "Được duyệt" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{row.status}</span>}
+                        {isAdmin ? <select value={row.status} onChange={(e) => updateStatus(row, e.target.value as CVStatus)} className="rounded-lg border border-sky-100 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-sky-400">{CV_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select> : <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${getStatusClass(row.status)}`}>{row.status}</span>}
                       </td>
                       <td className="px-4 py-4"><button onClick={() => openCV(row)} disabled={openingId === row.id} className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-700 hover:bg-sky-100 disabled:opacity-60">{openingId === row.id ? "Đang mở..." : "↗ Xem CV"}</button></td>
                     </tr>
