@@ -7,38 +7,67 @@ import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (loading) return;
+
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    setLoading(false);
+    try {
+      const loginPromise = supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-    if (error) {
-      alert("Đăng nhập thất bại: " + error.message);
-      return;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(
+            new Error(
+              "Kết nối Supabase quá thời gian chờ. Vui lòng kiểm tra mạng và thử lại."
+            )
+          );
+        }, 15000);
+      });
+
+      const { error } = await Promise.race([
+        loginPromise,
+        timeoutPromise,
+      ]);
+
+      if (error) {
+        alert("Đăng nhập thất bại: " + error.message);
+        return;
+      }
+
+      router.replace("/admin/dashboard");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Đã xảy ra lỗi không xác định.";
+
+      alert("Không thể đăng nhập: " + message);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+      setLoading(false);
     }
-
-    router.push("/admin/dashboard");
   }
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-sky-50 via-white to-blue-100 p-5">
-      {/* Background decorations */}
       <div className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-sky-200/50 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -right-20 h-[500px] w-[500px] rounded-full bg-blue-200/50 blur-3xl" />
       <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:25px_25px]" />
 
       <div className="relative z-10 grid w-full max-w-5xl overflow-hidden rounded-[32px] border border-white/80 bg-white/80 shadow-2xl shadow-sky-200/60 backdrop-blur-xl md:grid-cols-2">
-        {/* Left introduction */}
         <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-sky-500 via-blue-600 to-blue-800 p-10 text-white md:flex">
           <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full border-[35px] border-white/10" />
           <div className="pointer-events-none absolute -bottom-28 -left-20 h-80 w-80 rounded-full border-[45px] border-white/10" />
@@ -48,7 +77,9 @@ export default function LoginPage() {
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/30 bg-white/15 text-3xl font-black shadow-lg backdrop-blur">
               C
             </div>
-            <h1 className="mt-6 text-4xl font-black tracking-tight">CVISION</h1>
+            <h1 className="mt-6 text-4xl font-black tracking-tight">
+              CVISION
+            </h1>
             <p className="mt-2 text-sm font-semibold tracking-[0.25em] text-sky-100">
               CAREER CONNECTION
             </p>
@@ -57,7 +88,9 @@ export default function LoginPage() {
           <div className="relative my-12">
             <h2 className="text-3xl font-extrabold leading-tight">
               Quản trị thông minh.
-              <span className="block text-sky-200">Kết nối nhân tài.</span>
+              <span className="block text-sky-200">
+                Kết nối nhân tài.
+              </span>
             </h2>
             <p className="mt-5 max-w-sm text-sm leading-7 text-blue-100">
               Nền tảng hỗ trợ quản lý tuyển dụng, hồ sơ ứng viên và kết nối
@@ -73,7 +106,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Login form */}
         <div className="flex items-center justify-center p-7 sm:p-10 md:p-12">
           <form onSubmit={handleLogin} className="w-full max-w-md">
             <div className="mb-8 text-center md:text-left">
