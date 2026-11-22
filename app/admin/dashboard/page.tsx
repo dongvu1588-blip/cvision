@@ -27,7 +27,6 @@ const menu = [
   { icon: "▦", name: "Dashboard", href: "/admin/dashboard" },
   { icon: "♙", name: "Ứng viên", href: "/admin/candidates" },
   { icon: "▤", name: "Quản lý công việc", href: "/admin/jobs" },
-  { icon: "▥", name: "Tiến độ tuyển dụng", href: "/admin/pipeline" },
   { icon: "✉", name: "Dịch vụ CV", href: "/admin/cv-requests" },
   { icon: "▣", name: "Quản lý CV", href: "/admin/cv-management" },
 ];
