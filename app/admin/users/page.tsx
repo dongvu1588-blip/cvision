@@ -141,14 +141,16 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-800 md:px-8">
-      <div className="mx-auto max-w-6xl">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-sky-50 via-white to-blue-50 px-4 py-8 text-slate-800 md:px-8">
+      <div className="pointer-events-none absolute -left-24 top-16 h-72 w-72 rounded-full bg-sky-200/30 blur-3xl" />
+      <div className="pointer-events-none absolute -right-24 top-[28rem] h-80 w-80 rounded-full bg-blue-200/30 blur-3xl" />
+      <div className="relative z-10 mx-auto max-w-6xl">
 
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <a
               href="/admin/dashboard"
-              className="text-sm font-semibold text-emerald-700"
+              className="text-sm font-semibold text-sky-700"
             >
               ← Quay lại Dashboard
             </a>
@@ -177,7 +179,7 @@ export default function AdminUsersPage() {
         )}
 
         {success && (
-          <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          <div className="mb-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800">
             {success}
           </div>
         )}
@@ -204,7 +206,7 @@ export default function AdminUsersPage() {
                 onChange={(event) =>
                   setFullName(event.target.value)
                 }
-                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 font-normal outline-none focus:border-emerald-500"
+                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 font-normal outline-none focus:border-sky-500"
                 placeholder="Nguyễn Văn A"
               />
             </label>
@@ -219,7 +221,7 @@ export default function AdminUsersPage() {
                 onChange={(event) =>
                   setEmail(event.target.value)
                 }
-                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 font-normal outline-none focus:border-emerald-500"
+                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 font-normal outline-none focus:border-sky-500"
                 placeholder="nhanvien@example.com"
               />
             </label>
@@ -235,7 +237,7 @@ export default function AdminUsersPage() {
                 onChange={(event) =>
                   setPassword(event.target.value)
                 }
-                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 font-normal outline-none focus:border-emerald-500"
+                className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 font-normal outline-none focus:border-sky-500"
                 placeholder="Ít nhất 8 ký tự"
                 autoComplete="new-password"
               />
@@ -249,7 +251,7 @@ export default function AdminUsersPage() {
                 onChange={(event) =>
                   setRole(event.target.value)
                 }
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-normal outline-none focus:border-emerald-500"
+                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-normal outline-none focus:border-sky-500"
               >
                 <option value="recruiter">
                   Recruiter – Nhân viên tuyển dụng
@@ -265,7 +267,7 @@ export default function AdminUsersPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-xl bg-sky-600 px-6 py-3 text-sm font-bold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving
                   ? "Đang tạo tài khoản..."
@@ -336,8 +338,8 @@ export default function AdminUsersPage() {
                         <span
                           className={`rounded-full px-3 py-1 text-xs font-semibold ${
                             user.role === "admin"
-                              ? "bg-violet-50 text-violet-700"
-                              : "bg-emerald-50 text-emerald-700"
+                              ? "bg-blue-50 text-blue-700"
+                              : "bg-sky-50 text-sky-700"
                           }`}
                         >
                           {user.role === "admin"

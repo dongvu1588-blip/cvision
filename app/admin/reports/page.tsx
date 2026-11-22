@@ -263,8 +263,10 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-5 text-slate-800 md:p-8">
-      <div className="mx-auto max-w-7xl">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-sky-50 via-white to-blue-50 p-5 text-slate-800 md:p-8">
+      <div className="pointer-events-none absolute -left-24 top-20 h-72 w-72 rounded-full bg-sky-200/30 blur-3xl" />
+      <div className="pointer-events-none absolute -right-24 top-[32rem] h-80 w-80 rounded-full bg-blue-200/30 blur-3xl" />
+      <div className="relative z-10 mx-auto max-w-7xl">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm text-slate-500">CVISION / Báo cáo</p>
@@ -273,7 +275,7 @@ export default function ReportsPage() {
           </div>
           <div className="flex gap-3">
             <button onClick={() => router.push("/admin/dashboard")} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold hover:bg-slate-100">Quay lại</button>
-            <button onClick={exportCSV} disabled={loading} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">Xuất báo cáo CSV</button>
+            <button onClick={exportCSV} disabled={loading} className="rounded-xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50">Xuất báo cáo CSV</button>
           </div>
         </div>
 
@@ -295,14 +297,14 @@ export default function ReportsPage() {
           </div>
         </section>
 
-        <div className="mb-6 rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-          <p className="text-sm font-semibold text-emerald-800">{isAdmin ? "Chế độ Admin: Báo cáo toàn hệ thống" : "Chế độ Recruiter: Báo cáo hồ sơ được phân công cho bạn"}</p>
+        <div className="mb-6 rounded-xl border border-sky-100 bg-sky-50 p-4">
+          <p className="text-sm font-semibold text-sky-800">{isAdmin ? "Chế độ Admin: Báo cáo toàn hệ thống" : "Chế độ Recruiter: Báo cáo hồ sơ được phân công cho bạn"}</p>
         </div>
 
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((item) => <div key={item.title} className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">{item.title}</p>
-            <p className="mt-3 text-3xl font-extrabold text-emerald-700">{loading ? "..." : item.value}</p>
+            <p className="mt-3 text-3xl font-extrabold text-sky-700">{loading ? "..." : item.value}</p>
           </div>)}
         </section>
 
@@ -313,7 +315,7 @@ export default function ReportsPage() {
           </div>
           <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">Tỷ lệ đi làm / tổng hồ sơ</p>
-            <p className="mt-2 text-3xl font-extrabold text-violet-700">{loading ? "..." : `${onboardRate.toFixed(1)}%`}</p>
+            <p className="mt-2 text-3xl font-extrabold text-sky-700">{loading ? "..." : `${onboardRate.toFixed(1)}%`}</p>
           </div>
         </section>
 
@@ -327,7 +329,7 @@ export default function ReportsPage() {
               {monthlyStats.map((item) => <div key={item.key} className="flex min-w-12 flex-1 flex-col items-center justify-end gap-2">
                 <span className="text-xs font-bold text-slate-600">{loading ? "..." : item.count}</span>
                 <div className="flex h-40 w-full items-end rounded-t-lg bg-slate-50">
-                  <div className="w-full rounded-t-lg bg-emerald-500 transition-all" style={{ height: `${(item.count / maxMonthlyCount) * 100}%`, minHeight: item.count > 0 ? "5px" : "0" }} />
+                  <div className="w-full rounded-t-lg bg-sky-500 transition-all" style={{ height: `${(item.count / maxMonthlyCount) * 100}%`, minHeight: item.count > 0 ? "5px" : "0" }} />
                 </div>
                 <span className="whitespace-nowrap text-xs text-slate-500">{item.label}</span>
               </div>)}
@@ -343,7 +345,7 @@ export default function ReportsPage() {
               const percent = visibleApplications.length > 0 ? (count / visibleApplications.length) * 100 : 0;
               return <div key={stage}>
                 <div className="mb-2 flex justify-between text-sm"><span className="font-medium">{stage}</span><span className="font-bold">{loading ? "..." : count} ({percent.toFixed(1)}%)</span></div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${percent}%` }} /></div>
+                <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-sky-500" style={{ width: `${percent}%` }} /></div>
               </div>;
             })}
           </div>

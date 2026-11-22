@@ -127,7 +127,7 @@ export default function CVRequestsPage() {
   const statusColor = (status: string) => {
     switch (status) {
       case "Hoàn thành":
-        return "bg-green-100 text-green-700";
+        return "bg-sky-100 text-sky-700";
       case "Đang xử lý":
         return "bg-blue-100 text-blue-700";
       case "Đang liên hệ":
@@ -140,9 +140,11 @@ export default function CVRequestsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 p-5 text-slate-800 md:p-8">
-      <div className="mx-auto max-w-7xl">
-        <a href="/admin/dashboard" className="text-sm font-medium text-emerald-700">
+    <main className="relative min-h-screen overflow-hidden bg-gradient-to-br from-sky-50 via-white to-blue-50 p-5 text-slate-800 md:p-8">
+      <div className="pointer-events-none absolute -left-24 top-20 h-72 w-72 rounded-full bg-sky-200/30 blur-3xl" />
+      <div className="pointer-events-none absolute -right-24 top-[30rem] h-80 w-80 rounded-full bg-blue-200/30 blur-3xl" />
+      <div className="relative z-10 mx-auto max-w-7xl">
+        <a href="/admin/dashboard" className="text-sm font-medium text-sky-700">
           ← Quay lại Dashboard
         </a>
 
@@ -162,7 +164,7 @@ export default function CVRequestsPage() {
           ].map((item) => (
             <div key={item.title} className="rounded-xl border bg-white p-5 shadow-sm">
               <p className="text-sm text-slate-500">{item.title}</p>
-              <p className="mt-3 text-3xl font-extrabold text-emerald-700">
+              <p className="mt-3 text-3xl font-extrabold text-sky-700">
                 {loading ? "..." : item.value}
               </p>
             </div>
@@ -219,7 +221,7 @@ export default function CVRequestsPage() {
                       <td className="p-3">
                         <button
                           onClick={() => openDetails(request)}
-                          className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                          className="rounded-lg bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100"
                         >
                           Xem chi tiết
                         </button>
@@ -257,14 +259,14 @@ export default function CVRequestsPage() {
 
               <div className="overflow-y-auto p-5 md:p-7">
                 <section className="mb-7">
-                  <h3 className="mb-4 text-base font-bold text-emerald-800">1. Ảnh hồ sơ</h3>
+                  <h3 className="mb-4 text-base font-bold text-sky-800">1. Ảnh hồ sơ</h3>
                   {photoLoading ? (
                     <p className="text-sm text-slate-500">Đang tải ảnh...</p>
                   ) : photoUrl ? (
                     <a href={photoUrl} target="_blank" rel="noreferrer" className="inline-block">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={photoUrl} alt={`Ảnh hồ sơ ${selectedRequest.full_name}`} className="max-h-72 rounded-xl border object-contain" />
-                      <span className="mt-2 block text-xs font-semibold text-emerald-700">Mở ảnh kích thước đầy đủ</span>
+                      <span className="mt-2 block text-xs font-semibold text-sky-700">Mở ảnh kích thước đầy đủ</span>
                     </a>
                   ) : (
                     <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
@@ -274,7 +276,7 @@ export default function CVRequestsPage() {
                 </section>
 
                 <section className="mb-7">
-                  <h3 className="mb-4 text-base font-bold text-emerald-800">2. Thông tin cá nhân</h3>
+                  <h3 className="mb-4 text-base font-bold text-sky-800">2. Thông tin cá nhân</h3>
                   <div className="grid gap-3 md:grid-cols-2">
                     <DetailField label="Họ và tên" value={selectedRequest.full_name} />
                     <DetailField label="Ngày sinh" value={formatDate(selectedRequest.date_of_birth)} />
@@ -285,7 +287,7 @@ export default function CVRequestsPage() {
                 </section>
 
                 <section className="mb-7">
-                  <h3 className="mb-4 text-base font-bold text-emerald-800">3. Nội dung hồ sơ CV</h3>
+                  <h3 className="mb-4 text-base font-bold text-sky-800">3. Nội dung hồ sơ CV</h3>
                   <div className="grid gap-3">
                     <DetailField label="Kinh nghiệm làm việc" value={selectedRequest.work_experience} />
                     <DetailField label="Kỹ năng" value={selectedRequest.skills} />
@@ -300,7 +302,7 @@ export default function CVRequestsPage() {
                 </section>
 
                 <section className="mb-7">
-                  <h3 className="mb-4 text-base font-bold text-emerald-800">4. Thông tin dịch vụ</h3>
+                  <h3 className="mb-4 text-base font-bold text-sky-800">4. Thông tin dịch vụ</h3>
                   <div className="grid gap-3 md:grid-cols-2">
                     <DetailField label="Gói dịch vụ đã chọn" value={selectedRequest.service_type} />
                     <DetailField label="Ngày gửi yêu cầu" value={new Date(selectedRequest.created_at).toLocaleString("vi-VN")} />
@@ -308,7 +310,7 @@ export default function CVRequestsPage() {
                     <div className="md:col-span-2">
                       <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
                         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Đồng ý chia sẻ CV với doanh nghiệp/nhà tuyển dụng</p>
-                        <p className={`text-sm font-bold ${selectedRequest.consent_to_share ? "text-emerald-700" : "text-amber-700"}`}>
+                        <p className={`text-sm font-bold ${selectedRequest.consent_to_share ? "text-sky-700" : "text-amber-700"}`}>
                           {selectedRequest.consent_to_share ? "Có đồng ý chia sẻ" : "Không đồng ý / Chưa xác nhận"}
                         </p>
                       </div>
@@ -317,7 +319,7 @@ export default function CVRequestsPage() {
                 </section>
 
                 <section className="mb-2">
-                  <h3 className="mb-4 text-base font-bold text-emerald-800">5. Theo dõi xử lý</h3>
+                  <h3 className="mb-4 text-base font-bold text-sky-800">5. Theo dõi xử lý</h3>
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
                       <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Trạng thái yêu cầu</label>
@@ -337,7 +339,7 @@ export default function CVRequestsPage() {
               <div className="border-t bg-white px-6 py-4">
                 <button
                   onClick={() => setSelectedRequest(null)}
-                  className="w-full rounded-lg bg-emerald-700 p-3 font-semibold text-white hover:bg-emerald-800"
+                  className="w-full rounded-lg bg-sky-700 p-3 font-semibold text-white hover:bg-sky-800"
                 >
                   Đóng chi tiết
                 </button>

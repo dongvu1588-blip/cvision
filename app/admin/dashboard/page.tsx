@@ -34,12 +34,12 @@ const menu = [
 ];
 
 const stages = [
-  { name: "Nộp CV", color: "bg-blue-500" },
-  { name: "Hẹn phỏng vấn", color: "bg-amber-500" },
-  { name: "Phỏng vấn", color: "bg-violet-500" },
-  { name: "Đàm phán lương", color: "bg-orange-500" },
-  { name: "Nhận Offer", color: "bg-emerald-500" },
-  { name: "Đi làm", color: "bg-green-700" },
+  { name: "Nộp CV", color: "bg-sky-500" },
+  { name: "Hẹn phỏng vấn", color: "bg-blue-500" },
+  { name: "Phỏng vấn", color: "bg-indigo-500" },
+  { name: "Đàm phán lương", color: "bg-cyan-500" },
+  { name: "Nhận Offer", color: "bg-blue-600" },
+  { name: "Đi làm", color: "bg-sky-700" },
 ];
 
 function percentage(value: number, total: number) {
@@ -201,42 +201,48 @@ export default function Dashboard() {
       value: totalCandidates,
       icon: "♙",
       note: "Ứng viên có hồ sơ tuyển dụng",
-      accent: "text-blue-600",
+      accent: "text-sky-600",
+      iconBg: "bg-sky-50",
     },
     {
       title: "Tổng hồ sơ tuyển dụng",
       value: totalApplications,
       icon: "▤",
       note: "Lượt ứng tuyển được giao",
-      accent: "text-violet-600",
+      accent: "text-blue-600",
+      iconBg: "bg-blue-50",
     },
     {
       title: "Đã nhận Offer",
       value: offerCount,
       icon: "✉",
       note: "Ứng viên nhận Offer",
-      accent: "text-emerald-600",
+      accent: "text-indigo-600",
+      iconBg: "bg-indigo-50",
     },
     {
       title: "Đã đi làm",
       value: onboardCount,
       icon: "✓",
       note: "Ứng viên đã onboard",
-      accent: "text-green-700",
+      accent: "text-cyan-700",
+      iconBg: "bg-cyan-50",
     },
     {
       title: "Tỷ lệ nhận Offer",
       value: `${percentage(offerCount, totalApplications)}%`,
       icon: "%",
       note: "Offer / tổng hồ sơ tuyển dụng",
-      accent: "text-amber-600",
+      accent: "text-blue-700",
+      iconBg: "bg-blue-50",
     },
     {
       title: "Tỷ lệ đi làm",
       value: `${percentage(onboardCount, totalApplications)}%`,
       icon: "↗",
       note: "Onboard / tổng hồ sơ tuyển dụng",
-      accent: "text-teal-600",
+      accent: "text-sky-700",
+      iconBg: "bg-sky-50",
     },
   ];
 
@@ -290,19 +296,24 @@ export default function Dashboard() {
     });
 
   return (
-    <div className="flex min-h-screen bg-slate-50 text-slate-800">
-      <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white p-5 md:block">
+    <div className="flex min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 text-slate-800">
+      {/* SIDEBAR */}
+      <aside className="hidden w-64 shrink-0 border-r border-sky-100 bg-white p-5 shadow-sm md:flex md:flex-col">
         <a href="/" className="mb-10 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-xl font-bold text-white">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-blue-600 text-xl font-black text-white shadow-lg shadow-sky-200">
             C
           </div>
-
-          <span className="text-2xl font-extrabold text-emerald-700">
-            CVISION
-          </span>
+          <div>
+            <span className="text-2xl font-black tracking-tight text-sky-700">
+              CVISION
+            </span>
+            <p className="text-[9px] font-bold tracking-[0.2em] text-sky-500">
+              ADMIN WORKSPACE
+            </p>
+          </div>
         </a>
 
-        <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-400">
+        <p className="mb-4 px-3 text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-400">
           Workspace
         </p>
 
@@ -311,13 +322,15 @@ export default function Dashboard() {
             <a
               key={item.name}
               href={item.href}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium ${
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
                 i === 0
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "text-slate-600 hover:bg-slate-50"
+                  ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md shadow-sky-100"
+                  : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
               }`}
             >
-              <span className="text-lg">{item.icon}</span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-lg">
+                {item.icon}
+              </span>
               {item.name}
             </a>
           ))}
@@ -325,155 +338,157 @@ export default function Dashboard() {
           {isAdmin && (
             <a
               href="/admin/users"
-              className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-sky-50 hover:text-sky-700"
             >
-              <span className="text-lg">♙</span>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50 text-lg text-sky-600">
+                ♙
+              </span>
               Quản lý nhân viên
             </a>
           )}
         </nav>
 
-        <div className="mt-12 rounded-2xl bg-emerald-50 p-4">
-          <p className="font-bold text-emerald-800">
-            CVISION Workspace
-          </p>
-
-          <p className="mt-2 text-xs leading-5 text-emerald-700">
+        <div className="mt-auto rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-blue-100 p-4">
+          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-lg text-sky-600 shadow-sm">
+            ✦
+          </div>
+          <p className="font-extrabold text-sky-800">CVISION Workspace</p>
+          <p className="mt-2 text-xs leading-5 text-sky-700">
             Nền tảng quản lý ứng viên và kết nối doanh nghiệp.
           </p>
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 p-5 md:p-8">
-        <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
+      {/* MAIN */}
+      <main className="min-w-0 flex-1 p-4 sm:p-5 md:p-8">
+        {/* HEADER */}
+        <header className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-sky-100 bg-white/90 p-5 shadow-sm backdrop-blur">
           <div>
-            <p className="text-sm text-slate-500">
+            <p className="text-xs font-semibold text-sky-500">
               Workspace / Dashboard
             </p>
-
-            <h1 className="mt-2 text-2xl font-extrabold md:text-3xl">
+            <h1 className="mt-2 text-2xl font-black text-slate-800 md:text-3xl">
               Tổng quan tuyển dụng
             </h1>
-
             <p className="mt-1 text-sm text-slate-500">
               Theo dõi hoạt động giới thiệu ứng viên của CVISION.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-600 font-black text-white shadow-md shadow-sky-100">
               {currentName.charAt(0).toUpperCase() || "C"}
             </div>
 
             <div>
-              <p className="text-sm font-bold">
+              <p className="text-sm font-bold text-slate-800">
                 {loading ? "Đang tải..." : currentName}
               </p>
-
-              <p className="text-xs text-slate-500">
+              <p className="text-xs font-medium text-sky-600">
                 {isAdmin ? "Quản trị viên" : "Recruiter"}
               </p>
             </div>
 
             <button
               onClick={handleLogout}
-              className="ml-2 rounded-lg bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-100"
+              className="ml-2 rounded-xl border border-sky-100 bg-sky-50 px-4 py-2.5 text-sm font-bold text-sky-700 transition hover:bg-sky-100"
             >
               Đăng xuất
             </button>
           </div>
         </header>
 
+        {/* ERROR */}
         {errorMessage && (
           <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             Không tải được dữ liệu: {errorMessage}
           </div>
         )}
 
+        {/* STATISTICS */}
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {stats.map((item) => (
             <div
               key={item.title}
-              className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"
+              className="group rounded-2xl border border-sky-100 bg-white p-5 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-sky-300 hover:shadow-lg hover:shadow-sky-100/70"
             >
               <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-500">
+                <p className="text-sm font-semibold text-slate-500">
                   {item.title}
                 </p>
-
-                <span className={`text-2xl font-bold ${item.accent}`}>
+                <span
+                  className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl font-bold ${item.accent} ${item.iconBg}`}
+                >
                   {item.icon}
                 </span>
               </div>
 
-              <h2 className="mt-4 text-3xl font-extrabold">
+              <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-800">
                 {loading ? "..." : item.value}
               </h2>
 
-              <p className="mt-2 text-xs text-slate-400">
-                {item.note}
-              </p>
+              <p className="mt-2 text-xs text-slate-400">{item.note}</p>
             </div>
           ))}
         </section>
 
-        <section className="mt-8 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+        {/* RECRUITMENT STAGES */}
+        <section className="mt-8 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm md:p-6">
           <div className="mb-6">
-            <h2 className="text-lg font-bold">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-500">
+              Recruitment Pipeline
+            </span>
+            <h2 className="mt-2 text-xl font-black text-slate-800">
               Tiến độ tuyển dụng
             </h2>
-
             <p className="mt-1 text-sm text-slate-500">
               Số lượng hồ sơ tại từng giai đoạn.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             {stageCounts.map((stage) => (
               <div
                 key={stage.name}
-                className="rounded-xl bg-slate-50 p-4"
+                className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/80 to-white p-4"
               >
                 <div className={`mb-4 h-1.5 rounded-full ${stage.color}`} />
-
-                <p className="min-h-10 text-sm font-medium text-slate-600">
+                <p className="min-h-10 text-sm font-semibold text-slate-600">
                   {stage.name}
                 </p>
-
-                <p className="mt-2 text-2xl font-extrabold">
+                <p className="mt-2 text-2xl font-black text-slate-800">
                   {loading ? "..." : stage.count}
                 </p>
-
                 <p className="text-xs text-slate-400">Hồ sơ</p>
               </div>
             ))}
           </div>
 
-          <div className="mt-8 border-t border-slate-100 pt-6">
-            <h3 className="mb-4 text-sm font-bold text-slate-700">
+          <div className="mt-8 border-t border-sky-100 pt-6">
+            <h3 className="mb-5 text-sm font-extrabold text-slate-700">
               Biểu đồ phân bổ hồ sơ theo giai đoạn
             </h3>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               {stageCounts.map((stage) => (
                 <div
                   key={`bar-${stage.name}`}
                   className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[150px_1fr_44px]"
                 >
-                  <span className="text-sm text-slate-600">
+                  <span className="text-sm font-medium text-slate-600">
                     {stage.name}
                   </span>
 
-                  <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-3 overflow-hidden rounded-full bg-sky-50">
                     <div
-                      className={`h-full rounded-full ${stage.color} transition-all`}
+                      className={`h-full rounded-full ${stage.color} transition-all duration-500`}
                       style={{
                         width: `${(stage.count / maxStageCount) * 100}%`,
                       }}
                     />
                   </div>
 
-                  <span className="text-sm font-bold tabular-nums sm:text-right">
+                  <span className="text-sm font-bold tabular-nums text-sky-700 sm:text-right">
                     {loading ? "..." : stage.count}
                   </span>
                 </div>
@@ -482,30 +497,33 @@ export default function Dashboard() {
           </div>
         </section>
 
+        {/* RECRUITER PERFORMANCE */}
         {isAdmin && (
-          <section className="mt-8 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <section className="mt-8 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm md:p-6">
             <div className="mb-6">
-              <h2 className="text-lg font-bold">
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-500">
+                Team Performance
+              </span>
+              <h2 className="mt-2 text-xl font-black text-slate-800">
                 Hiệu suất Recruiter
               </h2>
-
               <p className="mt-1 text-sm text-slate-500">
                 Thống kê hồ sơ được phân công và tỷ lệ chuyển đổi của từng nhân viên.
               </p>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-sky-100">
               <table className="w-full min-w-[950px] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 text-slate-500">
-                    <th className="px-3 py-4">Recruiter</th>
-                    <th className="px-3 py-4">Hồ sơ được giao</th>
-                    <th className="px-3 py-4">Phỏng vấn</th>
-                    <th className="px-3 py-4">Đàm phán</th>
-                    <th className="px-3 py-4">Offer</th>
-                    <th className="px-3 py-4">Đi làm</th>
-                    <th className="px-3 py-4">Tỷ lệ Offer</th>
-                    <th className="px-3 py-4">Tỷ lệ đi làm</th>
+                  <tr className="border-b border-sky-100 bg-sky-50 text-sky-800">
+                    <th className="px-3 py-4 font-bold">Recruiter</th>
+                    <th className="px-3 py-4 font-bold">Hồ sơ được giao</th>
+                    <th className="px-3 py-4 font-bold">Phỏng vấn</th>
+                    <th className="px-3 py-4 font-bold">Đàm phán</th>
+                    <th className="px-3 py-4 font-bold">Offer</th>
+                    <th className="px-3 py-4 font-bold">Đi làm</th>
+                    <th className="px-3 py-4 font-bold">Tỷ lệ Offer</th>
+                    <th className="px-3 py-4 font-bold">Tỷ lệ đi làm</th>
                   </tr>
                 </thead>
 
@@ -513,37 +531,20 @@ export default function Dashboard() {
                   {recruiterStats.map((recruiter) => (
                     <tr
                       key={recruiter.id}
-                      className="border-b border-slate-50 hover:bg-slate-50"
+                      className="border-b border-sky-50 transition hover:bg-sky-50/60"
                     >
-                      <td className="px-3 py-4 font-semibold">
+                      <td className="px-3 py-4 font-semibold text-slate-700">
                         {recruiter.full_name || "Chưa đặt tên"}
                       </td>
-
-                      <td className="px-3 py-4">
-                        {recruiter.total}
-                      </td>
-
-                      <td className="px-3 py-4">
-                        {recruiter.interview}
-                      </td>
-
-                      <td className="px-3 py-4">
-                        {recruiter.negotiation}
-                      </td>
-
-                      <td className="px-3 py-4">
-                        {recruiter.offer}
-                      </td>
-
-                      <td className="px-3 py-4">
-                        {recruiter.onboard}
-                      </td>
-
-                      <td className="px-3 py-4 font-semibold text-emerald-700">
+                      <td className="px-3 py-4">{recruiter.total}</td>
+                      <td className="px-3 py-4">{recruiter.interview}</td>
+                      <td className="px-3 py-4">{recruiter.negotiation}</td>
+                      <td className="px-3 py-4">{recruiter.offer}</td>
+                      <td className="px-3 py-4">{recruiter.onboard}</td>
+                      <td className="px-3 py-4 font-bold text-sky-700">
                         {recruiter.offerRate}%
                       </td>
-
-                      <td className="px-3 py-4 font-semibold text-green-700">
+                      <td className="px-3 py-4 font-bold text-blue-700">
                         {recruiter.onboardRate}%
                       </td>
                     </tr>
@@ -563,19 +564,22 @@ export default function Dashboard() {
               </table>
             </div>
 
-            <p className="mt-3 text-xs text-slate-400">
+            <p className="mt-3 text-xs leading-5 text-slate-400">
               Tỷ lệ được tính trên tổng số hồ sơ đang được phân công cho từng Recruiter.
             </p>
           </section>
         )}
 
-        <section className="mt-8 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+        {/* RECENT APPLICATIONS */}
+        <section className="mt-8 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm md:p-6">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg font-bold">
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-500">
+                Recent Applications
+              </span>
+              <h2 className="mt-2 text-xl font-black text-slate-800">
                 Hồ sơ tuyển dụng gần đây
               </h2>
-
               <p className="mt-1 text-sm text-slate-500">
                 {isAdmin
                   ? "Danh sách hồ sơ toàn hệ thống."
@@ -587,23 +591,26 @@ export default function Dashboard() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Tìm ứng viên, vị trí, công ty..."
-              className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm outline-none focus:border-emerald-500 sm:w-72"
+              className="w-full rounded-xl border border-sky-100 bg-sky-50/50 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100 sm:w-72"
             />
           </div>
 
           {loading ? (
-            <p className="py-8 text-center text-slate-400">
-              Đang tải dữ liệu...
-            </p>
+            <div className="py-10 text-center">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-sky-100 border-t-sky-500" />
+              <p className="mt-3 text-sm text-slate-400">
+                Đang tải dữ liệu...
+              </p>
+            </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-sky-100">
               <table className="w-full min-w-[700px] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 text-slate-500">
-                    <th className="px-3 py-4">Ứng viên</th>
-                    <th className="px-3 py-4">Vị trí</th>
-                    <th className="px-3 py-4">Doanh nghiệp</th>
-                    <th className="px-3 py-4">Giai đoạn</th>
+                  <tr className="border-b border-sky-100 bg-sky-50 text-sky-800">
+                    <th className="px-3 py-4 font-bold">Ứng viên</th>
+                    <th className="px-3 py-4 font-bold">Vị trí</th>
+                    <th className="px-3 py-4 font-bold">Doanh nghiệp</th>
+                    <th className="px-3 py-4 font-bold">Giai đoạn</th>
                   </tr>
                 </thead>
 
@@ -611,22 +618,19 @@ export default function Dashboard() {
                   {filtered.map((application) => (
                     <tr
                       key={application.id}
-                      className="border-b border-slate-50 hover:bg-slate-50"
+                      className="border-b border-sky-50 transition hover:bg-sky-50/60"
                     >
-                      <td className="px-3 py-4 font-semibold">
+                      <td className="px-3 py-4 font-semibold text-slate-700">
                         {application.candidates?.full_name || "Chưa có tên"}
                       </td>
-
-                      <td className="px-3 py-4">
+                      <td className="px-3 py-4 text-slate-600">
                         {application.jobs?.title || "Chưa có vị trí"}
                       </td>
-
-                      <td className="px-3 py-4">
+                      <td className="px-3 py-4 text-slate-600">
                         {application.jobs?.companies?.name || "Chưa có công ty"}
                       </td>
-
                       <td className="px-3 py-4">
-                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700">
                           {application.stage}
                         </span>
                       </td>
@@ -649,7 +653,7 @@ export default function Dashboard() {
           )}
         </section>
 
-        <footer className="mt-8 text-center text-xs text-slate-400">
+        <footer className="mt-8 pb-4 text-center text-xs text-slate-400">
           CVISION Internal Management System © 2026
         </footer>
       </main>

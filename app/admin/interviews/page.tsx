@@ -461,15 +461,17 @@ export default function InterviewsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-5 text-slate-800 md:p-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="relative min-h-screen overflow-hidden bg-gradient-to-br from-sky-50 via-white to-blue-50 p-5 text-slate-800 md:p-8">
+      <div className="pointer-events-none absolute -left-24 top-24 h-72 w-72 rounded-full bg-sky-200/30 blur-3xl" />
+      <div className="pointer-events-none absolute -right-24 top-[28rem] h-80 w-80 rounded-full bg-blue-200/30 blur-3xl" />
+      <div className="relative z-10 mx-auto max-w-7xl">
 
         {/* Tiêu đề */}
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <a
               href="/admin/dashboard"
-              className="text-sm font-semibold text-emerald-700"
+              className="text-sm font-semibold text-sky-700"
             >
               ← Quay lại Dashboard
             </a>
@@ -491,8 +493,8 @@ export default function InterviewsPage() {
           </button>
         </div>
 
-        <div className="mb-6 rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-          <p className="text-sm font-semibold text-emerald-800">
+        <div className="mb-6 rounded-xl border border-sky-100 bg-sky-50 p-4">
+          <p className="text-sm font-semibold text-sky-800">
             {isAdmin
               ? "Admin: Xem và quản lý toàn bộ lịch phỏng vấn."
               : "Recruiter: Quản lý lịch phỏng vấn của hồ sơ được phân công."}
@@ -624,7 +626,7 @@ export default function InterviewsPage() {
 
           <div className="rounded-2xl border bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">Đã hoàn thành</p>
-            <p className="mt-2 text-3xl font-extrabold text-emerald-600">
+            <p className="mt-2 text-3xl font-extrabold text-sky-600">
               {loading ? "..." : completedCount}
             </p>
           </div>
@@ -747,7 +749,7 @@ export default function InterviewsPage() {
             <button
               type="submit"
               disabled={saving || applications.length === 0}
-              className="rounded-lg bg-emerald-700 px-6 py-3 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+              className="rounded-lg bg-sky-700 px-6 py-3 font-semibold text-white hover:bg-sky-800 disabled:opacity-50"
             >
               {saving ? "Đang lưu..." : "Tạo lịch phỏng vấn"}
             </button>
@@ -772,7 +774,7 @@ export default function InterviewsPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Tìm ứng viên, vị trí, công ty..."
-              className="w-full rounded-lg border p-3 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+              className="w-full rounded-lg border p-3 text-sm outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600"
             />
 
             <select
@@ -886,7 +888,7 @@ export default function InterviewsPage() {
                             href={item.meeting_link}
                             target="_blank"
                             rel="noreferrer"
-                            className="mt-1 block text-emerald-700 underline"
+                            className="mt-1 block text-sky-700 underline"
                           >
                             Mở link phỏng vấn
                           </a>
@@ -1042,7 +1044,7 @@ export default function InterviewsPage() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="rounded-lg bg-emerald-700 px-5 py-3 font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                    className="rounded-lg bg-sky-700 px-5 py-3 font-semibold text-white hover:bg-sky-800 disabled:opacity-50"
                   >
                     {saving ? "Đang lưu..." : "Lưu thay đổi"}
                   </button>
