@@ -75,10 +75,6 @@ export default function CVServicePage() {
       setErrorMessage("Vui lòng tải lên ảnh CV/chân dung của bạn.");
       return;
     }
-    if (!consent) {
-      setErrorMessage("Bạn cần xác nhận đồng ý chia sẻ CV để tiếp tục.");
-      return;
-    }
     if (noLanguage && !languages.trim()) {
       // Khi chọn không có ngoại ngữ, tự lưu đúng nội dung yêu cầu.
       setLanguages("Không có");
@@ -295,9 +291,11 @@ export default function CVServicePage() {
             </section>
 
             <section className="space-y-4">
-              <h3 className="border-b pb-2 text-lg font-bold text-emerald-800">12. Xác nhận đồng ý chia sẻ CV <span className="text-red-600">*</span></h3>
+              <h3 className="border-b pb-2 text-lg font-bold text-emerald-800">
+                12. Xác nhận đồng ý chia sẻ CV <span className="text-sm font-normal text-slate-500">(Không bắt buộc)</span>
+              </h3>
               <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 text-sm leading-6">
-                <input required type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-emerald-700" />
+                <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-emerald-700" />
                 <span>Tôi xác nhận thông tin cung cấp là chính xác và đồng ý để CVISION lưu trữ, xử lý, sử dụng và chia sẻ hồ sơ CV của tôi với doanh nghiệp/nhà tuyển dụng nhằm mục đích tư vấn và kết nối việc làm.</span>
               </label>
             </section>
