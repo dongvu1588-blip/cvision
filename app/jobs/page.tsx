@@ -21,6 +21,7 @@ export default function PublicJobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [visibleJobsCount, setVisibleJobsCount] = useState(10);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   const [fullName, setFullName] = useState("");
@@ -64,6 +65,9 @@ export default function PublicJobsPage() {
       .toLowerCase()
       .includes(search.toLowerCase())
   );
+
+  // Mặc định chỉ hiển thị 10 việc làm; mỗi lần mở rộng thêm 10 việc làm.
+  const displayedJobs = filteredJobs.slice(0, visibleJobsCount);
 
   async function handleApply(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -247,7 +251,10 @@ export default function PublicJobsPage() {
             </span>
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setVisibleJobsCount(10);
+              }}
               placeholder="Tìm vị trí, công ty hoặc địa điểm..."
               className="w-full rounded-2xl border border-sky-100 bg-sky-50/50 py-4 pl-12 pr-4 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
             />
@@ -284,7 +291,7 @@ export default function PublicJobsPage() {
           </div>
         ) : (
           <div className="grid gap-5 md:grid-cols-2">
-            {filteredJobs.map((job) => (
+            {displayedJobs.map((job) => (
               <article
                 key={job.id}
                 className="group rounded-3xl border border-sky-100 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-sky-300 hover:shadow-xl hover:shadow-sky-100/70"
@@ -329,6 +336,38 @@ export default function PublicJobsPage() {
                 </button>
               </article>
             ))}
+          </div>
+        )}
+
+        {!loading && filteredJobs.length > 10 && (
+          <div className="mt-10 flex flex-col items-center justify-center gap-3">
+            {visibleJobsCount < filteredJobs.length && (
+              <button
+                type="button"
+                onClick={() =>
+                  setVisibleJobsCount((current) =>
+                    Math.min(current + 10, filteredJobs.length)
+                  )
+                }
+                className="rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-8 py-3.5 font-bold text-white shadow-lg shadow-sky-100 transition hover:-translate-y-0.5 hover:from-sky-600 hover:to-blue-700"
+              >
+                Mở rộng thêm job ({Math.min(10, filteredJobs.length - visibleJobsCount)})
+              </button>
+            )}
+
+            {visibleJobsCount > 10 && (
+              <button
+                type="button"
+                onClick={() => setVisibleJobsCount(10)}
+                className="rounded-xl border border-sky-200 bg-white px-8 py-3 font-bold text-sky-700 transition hover:bg-sky-50"
+              >
+                Thu gọn
+              </button>
+            )}
+
+            <p className="text-xs text-slate-400">
+              Đang hiển thị {displayedJobs.length} / {filteredJobs.length} việc làm
+            </p>
           </div>
         )}
       </section>
