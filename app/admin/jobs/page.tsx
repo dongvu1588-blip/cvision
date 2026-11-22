@@ -346,6 +346,39 @@ export default function JobsPage() {
                 {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
               </select>
             </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {[
+                { label: "Tất cả job", value: "Tất cả" },
+                { label: "Đang tuyển", value: "Đang tuyển" },
+                { label: "Tạm dừng", value: "Tạm dừng" },
+                { label: "Đã đóng", value: "Đã đóng" },
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setStatusFilter(item.value)}
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                    statusFilter === item.value
+                      ? "border-emerald-700 bg-emerald-700 text-white"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-emerald-500 hover:text-emerald-700"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("Tất cả");
+                  setCompanyFilter("Tất cả");
+                }}
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-50"
+              >
+                Xóa bộ lọc
+              </button>
+            </div>
           </div>
 
           {loading ? (
