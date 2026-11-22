@@ -447,7 +447,7 @@ export default function Home() {
             </div>
 
             <Link
-              href="/cv-services"
+              href="/cv-service"
               className="mt-9 inline-block rounded-2xl bg-gradient-to-r from-sky-400 to-blue-700 px-7 py-4 font-bold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-1"
             >
               Đăng ký dịch vụ CV →
@@ -479,7 +479,7 @@ export default function Home() {
                       {plan.price}
                     </p>
                     <Link
-                      href="/cv-services"
+                      href="/cv-service"
                       className="mt-5 block rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 px-4 py-3 text-center text-sm font-bold text-white transition hover:from-sky-500 hover:to-blue-700"
                     >
                       Chọn gói này
