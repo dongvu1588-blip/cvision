@@ -70,7 +70,15 @@ export default function PipelinePage() {
   const [jobId, setJobId] = useState("");
   const [search, setSearch] = useState("");
   const [openingCv, setOpeningCv] = useState<string | null>(null);
-  const [isListExpanded, setIsListExpanded] = useState(false);
+  const [expandedApplicationIds, setExpandedApplicationIds] = useState<string[]>([]);
+
+  function toggleApplication(id: string) {
+    setExpandedApplicationIds((current) =>
+      current.includes(id)
+        ? current.filter((itemId) => itemId !== id)
+        : [...current, id]
+    );
+  }
 
   const isAdmin = currentRole === "admin";
 
@@ -423,34 +431,16 @@ export default function PipelinePage() {
         <section className="overflow-hidden rounded-2xl border border-sky-100 bg-white/95 shadow-sm">
           <div className="border-b border-sky-100 bg-gradient-to-r from-white to-sky-50/80 p-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="min-w-0">
-                <button
-                  type="button"
-                  onClick={() => setIsListExpanded((current) => !current)}
-                  aria-expanded={isListExpanded}
-                  className="group flex items-center gap-3 text-left"
-                >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-lg font-bold text-sky-700 transition group-hover:bg-sky-200">
-                    {isListExpanded ? "−" : "+"}
-                  </span>
-                  <span>
-                    <span className="block text-xl font-bold text-slate-800">
-                      Danh sách hồ sơ tuyển dụng
-                    </span>
-                    <span className="mt-1 block text-sm text-slate-500">
-                      {isAdmin
-                        ? `Hiển thị ${filtered.length} / ${applications.length} hồ sơ`
-                        : `Hiển thị ${visibleApplications.length} hồ sơ được phân công cho bạn`}
-                    </span>
-                  </span>
-                </button>
-                <p className="mt-2 text-xs font-medium text-sky-600">
-                  {isListExpanded
-                    ? "Nhấn để thu gọn danh sách"
-                    : "Nhấn vào đây để xem chi tiết hồ sơ"}
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">
+                  Danh sách hồ sơ tuyển dụng
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {isAdmin
+                    ? `Hiển thị ${filtered.length} / ${applications.length} hồ sơ`
+                    : `Hiển thị ${visibleApplications.length} hồ sơ được phân công cho bạn`}
                 </p>
               </div>
-
               <button
                 type="button"
                 onClick={loadData}
@@ -459,24 +449,20 @@ export default function PipelinePage() {
                 ↻ Làm mới
               </button>
             </div>
-
+            <div className="relative mt-5">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-500">
+                🔎
+              </span>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Tìm ứng viên, vị trí, công ty..."
+                className="w-full rounded-xl border border-sky-100 bg-white py-3 pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+              />
+            </div>
           </div>
 
-          {isListExpanded && (
-            <>
-              <div className="relative border-b border-sky-50 px-4 pb-5 md:px-6">
-                <span className="absolute left-7 top-1/2 -translate-y-1/2 text-sky-500 md:left-9">
-                  🔎
-                </span>
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Tìm ứng viên, vị trí, công ty..."
-                  className="w-full rounded-xl border border-sky-100 bg-white py-3 pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                />
-              </div>
-
-              <div className="space-y-4 p-4 md:p-6">
+          <div className="space-y-4 p-4 md:p-6">
             {loading ? (
               <div className="py-12 text-center">
                 <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-sky-100 border-t-sky-500" />
@@ -508,14 +494,18 @@ export default function PipelinePage() {
                   >
                     {/* Thông tin ứng viên */}
                     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-sky-50 bg-gradient-to-r from-sky-50/70 to-white p-5">
-                      <div className="flex min-w-0 items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleApplication(item.id)}
+                        aria-expanded={expandedApplicationIds.includes(item.id)}
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left transition hover:bg-sky-50/80 focus:outline-none focus:ring-2 focus:ring-sky-300"
+                      >
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-blue-100 text-lg font-extrabold text-sky-700">
                           {(item.candidates?.full_name || "?")
                             .charAt(0)
                             .toUpperCase()}
                         </div>
-
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <h3 className="truncate text-lg font-bold text-slate-800">
                             {item.candidates?.full_name || "Chưa có tên"}
                           </h3>
@@ -523,8 +513,16 @@ export default function PipelinePage() {
                             {item.jobs?.title || "Chưa có vị trí"} ·{" "}
                             {item.jobs?.companies?.name || "Chưa có công ty"}
                           </p>
+                          <p className="mt-1 text-xs font-semibold text-sky-600">
+                            {expandedApplicationIds.includes(item.id)
+                              ? "Nhấn để thu gọn hồ sơ"
+                              : "Nhấn để xem chi tiết hồ sơ"}
+                          </p>
                         </div>
-                      </div>
+                        <span className="mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-lg font-bold text-sky-700 shadow-sm">
+                          {expandedApplicationIds.includes(item.id) ? "−" : "+"}
+                        </span>
+                      </button>
 
                       <div className="flex flex-wrap gap-2">
                         {item.candidates?.cv_url ? (
@@ -555,6 +553,7 @@ export default function PipelinePage() {
                       </div>
                     </div>
 
+                    {expandedApplicationIds.includes(item.id) && (
                     <div className="p-5">
                       {/* Phân công */}
                       <div className="mb-5 rounded-2xl border border-sky-100 bg-sky-50/60 p-4">
@@ -776,13 +775,12 @@ export default function PipelinePage() {
                         </div>
                       </div>
                     </div>
+                    )}
                   </article>
                 );
               })
               )}
-              </div>
-            </>
-          )}
+          </div>
         </section>
 
         <p className="mt-6 text-center text-xs text-slate-400">
