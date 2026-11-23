@@ -44,6 +44,19 @@ const EMPTY_FORM: JobForm = {
 
 const JOB_STATUSES = ["Đang tuyển", "Tạm dừng", "Đã đóng"];
 
+const JOB_JSON_PROMPT = `Hãy đọc JD tôi gửi và trích xuất thông tin thành MỘT JSON hợp lệ.
+Chỉ trả về JSON, không giải thích, không Markdown, không dùng dấu code fence.
+Không tự bịa thông tin; trường không có trong JD để chuỗi rỗng.
+Trả đúng cấu trúc:
+{
+  "title": "",
+  "company": "",
+  "location": "",
+  "salary": "",
+  "description": "",
+  "requirements": ""
+}`;
+
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -56,6 +69,9 @@ export default function JobsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Tất cả");
   const [companyFilter, setCompanyFilter] = useState("Tất cả");
+  const [jsonText, setJsonText] = useState("");
+  const [jsonError, setJsonError] = useState("");
+  const [jsonNotice, setJsonNotice] = useState("");
 
   async function loadData() {
     setLoading(true);
@@ -109,6 +125,66 @@ export default function JobsPage() {
   function resetForm() {
     setForm(EMPTY_FORM);
     setEditingJob(null);
+    setJsonText("");
+    setJsonError("");
+    setJsonNotice("");
+  }
+
+  async function copyJobPrompt() {
+    try {
+      await navigator.clipboard.writeText(JOB_JSON_PROMPT);
+      setJsonError("");
+      setJsonNotice("Đã sao chép hướng dẫn. Hãy gửi hướng dẫn này cùng JD cho ChatGPT.");
+    } catch {
+      setJsonError("Không thể sao chép tự động. Bạn có thể mở phần 'Xem hướng dẫn' và sao chép thủ công.");
+    }
+  }
+
+  function importJobJson() {
+    setJsonError("");
+    setJsonNotice("");
+    try {
+      let raw = jsonText.trim();
+      if (!raw) throw new Error("Bạn chưa dán JSON từ ChatGPT.");
+      raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+      const parsed = JSON.parse(raw);
+      const data = Array.isArray(parsed) ? parsed[0] : parsed;
+      if (!data || typeof data !== "object" || Array.isArray(data)) {
+        throw new Error("JSON phải là một đối tượng thông tin của một tin tuyển dụng.");
+      }
+
+      const readText = (...keys: string[]) => {
+        for (const key of keys) {
+          const value = data[key];
+          if (typeof value === "string" || typeof value === "number") return String(value).trim();
+        }
+        return "";
+      };
+
+      const companyName = readText("company", "company_name", "companyName", "employer");
+      const normalizedCompany = companyName.toLocaleLowerCase("vi").trim();
+      const matchedCompany = companies.find(
+        (company) => company.name.toLocaleLowerCase("vi").trim() === normalizedCompany
+      );
+
+      setForm((current) => ({
+        ...current,
+        title: readText("title", "position", "job_title", "jobTitle") || current.title,
+        company_id: matchedCompany?.id || "",
+        location: readText("location", "job_location", "work_location") || current.location,
+        salary: readText("salary", "salary_range", "income") || current.salary,
+        description: readText("description", "job_description", "responsibilities") || current.description,
+        requirements: readText("requirements", "job_requirements", "qualifications") || current.requirements,
+      }));
+
+      setJsonNotice(
+        companyName && !matchedCompany
+          ? `Đã điền JD. Chưa tìm thấy doanh nghiệp "${companyName}" trong hệ thống; vui lòng chọn doanh nghiệp trong danh sách.`
+          : "Đã tự động điền biểu mẫu. Vui lòng kiểm tra thông tin trước khi lưu."
+      );
+    } catch (error) {
+      setJsonError(error instanceof Error ? error.message : "JSON không hợp lệ. Vui lòng kiểm tra lại.");
+    }
   }
 
   async function saveJob(e: React.FormEvent<HTMLFormElement>) {
@@ -376,6 +452,58 @@ export default function JobsPage() {
           </div>
 
           <div className="p-6">
+            {!editingJob && (
+              <section className="mb-6 rounded-2xl border border-sky-200 bg-gradient-to-r from-sky-50 to-blue-50 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-slate-800">✨ Nhập JD bằng ChatGPT</h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Copy hướng dẫn → gửi kèm JD cho ChatGPT → dán JSON trả về → tự động điền biểu mẫu.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={copyJobPrompt}
+                    className="rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:shadow-md"
+                  >
+                    Copy hướng dẫn ChatGPT
+                  </button>
+                </div>
+                <textarea
+                  value={jsonText}
+                  onChange={(e) => {
+                    setJsonText(e.target.value);
+                    setJsonError("");
+                    setJsonNotice("");
+                  }}
+                  rows={7}
+                  placeholder={'Dán JSON ChatGPT trả về vào đây...\\n{\\n  "title": "Process Quality Engineer",\\n  "company": "Luxshare",\\n  "location": "KCN Quang Châu, Bắc Giang",\\n  "salary": "20-35 triệu",\\n  "description": "...",\\n  "requirements": "..."\\n}'}
+                  className="mt-4 w-full rounded-xl border border-sky-100 bg-white p-3 font-mono text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={importJobJson}
+                    className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700"
+                  >
+                    Đọc JSON và tự điền
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setJsonText(""); setJsonError(""); setJsonNotice(""); }}
+                    className="rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-sky-50"
+                  >
+                    Xóa JSON
+                  </button>
+                  <details className="w-full pt-1 text-sm text-slate-600">
+                    <summary className="cursor-pointer font-semibold text-sky-700">Xem hướng dẫn ChatGPT</summary>
+                    <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-sky-100 bg-white p-3 text-xs">{JOB_JSON_PROMPT}</pre>
+                  </details>
+                </div>
+                {jsonError && <p className="mt-3 text-sm font-semibold text-red-600">{jsonError}</p>}
+                {jsonNotice && <p className="mt-3 text-sm font-semibold text-emerald-700">{jsonNotice}</p>}
+              </section>
+            )}
             <div className="grid gap-5 md:grid-cols-2">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-600">
