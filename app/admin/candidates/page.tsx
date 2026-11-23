@@ -107,6 +107,8 @@ export default function CandidatesPage() {
   const [openingCv, setOpeningCv] = useState<string | null>(null);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const [deletingCandidateId, setDeletingCandidateId] = useState<string | null>(null);
+  const [approvingCandidateId, setApprovingCandidateId] = useState<string | null>(null);
+  const [approvedCandidateIds, setApprovedCandidateIds] = useState<string[]>([]);
 
   const isAdmin = currentRole === "admin";
 
@@ -159,6 +161,16 @@ export default function CandidatesPage() {
     } else {
       const rows = (data || []) as Candidate[];
       setCandidates(rows);
+
+      if (rows.length > 0) {
+        const { data: commissionRows } = await supabase
+          .from("cv_commissions")
+          .select("candidate_id")
+          .in("candidate_id", rows.map((candidate) => candidate.id));
+        setApprovedCandidateIds((commissionRows || []).map((item) => item.candidate_id));
+      } else {
+        setApprovedCandidateIds([]);
+      }
 
       const photoEntries = await Promise.all(
         rows
@@ -391,6 +403,63 @@ export default function CandidatesPage() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function approveCandidate(candidate: Candidate) {
+    if (!isAdmin) {
+      alert("Chỉ Admin mới có quyền duyệt CV.");
+      return;
+    }
+
+    if (candidate.status === "invalid") {
+      alert("CV không hợp lệ không thể được duyệt thưởng.");
+      return;
+    }
+
+    if (!candidate.uploaded_by) {
+      alert("CV này chưa có thông tin nhân viên upload nên chưa thể cộng thưởng.");
+      return;
+    }
+
+    const alreadyApproved = approvedCandidateIds.includes(candidate.id);
+    if (alreadyApproved) {
+      alert("CV này đã được duyệt thưởng trước đó. Hệ thống không cộng trùng.");
+      return;
+    }
+
+    if (!window.confirm(`Duyệt CV của ${candidate.full_name} và cộng 30.000 VNĐ cho nhân viên upload?`)) {
+      return;
+    }
+
+    setApprovingCandidateId(candidate.id);
+    try {
+      const { data: existing, error: checkError } = await supabase
+        .from("cv_commissions")
+        .select("id")
+        .eq("candidate_id", candidate.id)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existing) {
+        setApprovedCandidateIds((current) => [...current, candidate.id]);
+        alert("CV này đã được duyệt thưởng trước đó. Không cộng thêm lần nữa.");
+        return;
+      }
+
+      const { error } = await supabase.rpc("approve_candidate_cv", {
+        p_candidate_id: candidate.id,
+      });
+
+      if (error) throw error;
+
+      setApprovedCandidateIds((current) => [...current, candidate.id]);
+      alert("Đã duyệt CV và ghi nhận 30.000 VNĐ tiền thưởng chờ thanh toán cho nhân viên.");
+    } catch (error) {
+      alert("Không duyệt được CV: " + (error instanceof Error ? error.message : "Lỗi không xác định"));
+    } finally {
+      setApprovingCandidateId(null);
     }
   }
 
@@ -683,6 +752,19 @@ export default function CandidatesPage() {
                             <button onClick={() => openCv(candidate, true)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
                               Tải
                             </button>
+                            {isAdmin && (candidate.status || "valid") !== "invalid" && (
+                              <button
+                                disabled={approvingCandidateId === candidate.id || approvedCandidateIds.includes(candidate.id)}
+                                onClick={() => approveCandidate(candidate)}
+                                className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {approvingCandidateId === candidate.id
+                                  ? "Đang duyệt..."
+                                  : approvedCandidateIds.includes(candidate.id)
+                                    ? "Đã duyệt thưởng"
+                                    : "✓ Duyệt CV +30.000đ"}
+                              </button>
+                            )}
                             {isAdmin && (
                               <button
                                 disabled={deletingCandidateId === candidate.id}
