@@ -76,6 +76,7 @@ export default function FinancePage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [showRevenueForm, setShowRevenueForm] = useState(false);
+  const [editingRevenueId, setEditingRevenueId] = useState<string | null>(null);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [revenueType, setRevenueType] = useState<"B2C" | "B2B">("B2C");
   const [revenueDescription, setRevenueDescription] = useState("");
@@ -199,27 +200,59 @@ export default function FinancePage() {
   async function addRevenue(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
-    const { error: insertError } = await supabase.from("finance_revenues").insert({
+    const revenueData = {
       revenue_type: revenueType,
       description: revenueDescription.trim(),
       customer_name: revenueCustomer.trim() || null,
       amount: Number(revenueAmount),
       payment_date: revenueDate,
-      status: "confirmed",
-      created_by: userId,
-      confirmed_by: userId,
-      confirmed_at: new Date().toISOString(),
-    });
+    };
+
+    const result = editingRevenueId
+      ? await supabase
+          .from("finance_revenues")
+          .update(revenueData)
+          .eq("id", editingRevenueId)
+      : await supabase.from("finance_revenues").insert({
+          ...revenueData,
+          status: "confirmed",
+          created_by: userId,
+          confirmed_by: userId,
+          confirmed_at: new Date().toISOString(),
+        });
+
     setSaving(false);
-    if (insertError) {
-      alert("Không thêm được doanh thu: " + insertError.message);
+    if (result.error) {
+      alert((editingRevenueId ? "Không cập nhật được doanh thu: " : "Không thêm được doanh thu: ") + result.error.message);
       return;
     }
     setShowRevenueForm(false);
+    setEditingRevenueId(null);
     setRevenueDescription("");
     setRevenueCustomer("");
     setRevenueAmount("");
     await loadData();
+  }
+
+  function openEditRevenue(item: Revenue) {
+    if (!isAdmin) return;
+    setEditingRevenueId(item.id);
+    setRevenueType(item.revenue_type);
+    setRevenueDescription(item.description);
+    setRevenueCustomer(item.customer_name || "");
+    setRevenueAmount(String(item.amount));
+    setRevenueDate(item.payment_date);
+    setShowRevenueForm(true);
+  }
+
+  function openAddRevenue() {
+    setEditingRevenueId(null);
+    setRevenueType("B2C");
+    setRevenueDescription("");
+    setRevenueCustomer("");
+    setRevenueAmount("");
+    setRevenueDate(new Date().toISOString().slice(0, 10));
+    setShowRevenueForm(true);
   }
 
   async function addExpense(event: FormEvent<HTMLFormElement>) {
@@ -370,8 +403,8 @@ export default function FinancePage() {
 
               {tab === "revenue" && isAdmin && (
                 <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5"><div><h2 className="font-extrabold">Quản lý doanh thu</h2><p className="mt-1 text-xs text-slate-400">Chỉ ghi nhận doanh thu đã xác nhận thực thu.</p></div><button onClick={() => setShowRevenueForm(true)} className="rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-bold text-white">＋ Thêm doanh thu</button></div>
-                  <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-4 py-3">Ngày thu</th><th className="px-4 py-3">Loại</th><th className="px-4 py-3">Nội dung</th><th className="px-4 py-3">Khách hàng</th><th className="px-4 py-3 text-right">Số tiền</th></tr></thead><tbody>{selectedRevenues.map((item) => <tr key={item.id} className="border-t border-slate-100"><td className="px-4 py-3">{dateText(item.payment_date)}</td><td className="px-4 py-3">{item.revenue_type}</td><td className="px-4 py-3">{item.description}</td><td className="px-4 py-3">{item.customer_name || "—"}</td><td className="px-4 py-3 text-right font-bold">{money(Number(item.amount))}</td></tr>)}</tbody></table>{selectedRevenues.length === 0 && <p className="p-10 text-center text-sm text-slate-400">Chưa có doanh thu trong tháng này.</p>}</div>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5"><div><h2 className="font-extrabold">Quản lý doanh thu</h2><p className="mt-1 text-xs text-slate-400">Chỉ ghi nhận doanh thu đã xác nhận thực thu.</p></div><button onClick={openAddRevenue} className="rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-bold text-white">＋ Thêm doanh thu</button></div>
+                  <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="px-4 py-3">Ngày thu</th><th className="px-4 py-3">Loại</th><th className="px-4 py-3">Nội dung</th><th className="px-4 py-3">Khách hàng</th><th className="px-4 py-3 text-right">Số tiền</th><th className="px-4 py-3 text-center">Thao tác</th></tr></thead><tbody>{selectedRevenues.map((item) => <tr key={item.id} className="border-t border-slate-100"><td className="px-4 py-3">{dateText(item.payment_date)}</td><td className="px-4 py-3">{item.revenue_type}</td><td className="px-4 py-3">{item.description}</td><td className="px-4 py-3">{item.customer_name || "—"}</td><td className="px-4 py-3 text-right font-bold">{money(Number(item.amount))}</td><td className="px-4 py-3 text-center"><button onClick={() => openEditRevenue(item)} className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-700 hover:bg-sky-100">✏ Sửa</button></td></tr>)}</tbody></table>{selectedRevenues.length === 0 && <p className="p-10 text-center text-sm text-slate-400">Chưa có doanh thu trong tháng này.</p>}</div>
                 </section>
               )}
 
@@ -386,7 +419,7 @@ export default function FinancePage() {
         </div>
       </main>
 
-      {showRevenueForm && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4"><form onSubmit={addRevenue} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between"><h2 className="text-lg font-extrabold">Thêm khoản doanh thu</h2><button type="button" onClick={() => setShowRevenueForm(false)} className="text-2xl text-slate-400">×</button></div><div><label className="mb-1 block text-xs font-bold">Loại doanh thu</label><select value={revenueType} onChange={(e) => setRevenueType(e.target.value as "B2C" | "B2B")} className={inputClass}><option value="B2C">B2C</option><option value="B2B">B2B</option></select></div><div><label className="mb-1 block text-xs font-bold">Nội dung</label><input required value={revenueDescription} onChange={(e) => setRevenueDescription(e.target.value)} className={inputClass}/></div><div><label className="mb-1 block text-xs font-bold">Khách hàng</label><input value={revenueCustomer} onChange={(e) => setRevenueCustomer(e.target.value)} className={inputClass}/></div><div><label className="mb-1 block text-xs font-bold">Số tiền (VNĐ)</label><input required min="1" type="number" value={revenueAmount} onChange={(e) => setRevenueAmount(e.target.value)} className={inputClass}/></div><div><label className="mb-1 block text-xs font-bold">Ngày thu tiền</label><input required type="date" value={revenueDate} onChange={(e) => setRevenueDate(e.target.value)} className={inputClass}/></div><div className="flex justify-end gap-2"><button type="button" onClick={() => setShowRevenueForm(false)} className="rounded-xl border px-4 py-2 text-sm">Hủy</button><button disabled={saving} className="rounded-xl bg-teal-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-50">{saving ? "Đang lưu..." : "Lưu doanh thu"}</button></div></form></div>}
+      {showRevenueForm && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4"><form onSubmit={addRevenue} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between"><h2 className="text-lg font-extrabold">{editingRevenueId ? "Chỉnh sửa doanh thu" : "Thêm khoản doanh thu"}</h2><button type="button" onClick={() => { setShowRevenueForm(false); setEditingRevenueId(null); }} className="text-2xl text-slate-400">×</button></div><div><label className="mb-1 block text-xs font-bold">Loại doanh thu</label><select value={revenueType} onChange={(e) => setRevenueType(e.target.value as "B2C" | "B2B")} className={inputClass}><option value="B2C">B2C</option><option value="B2B">B2B</option></select></div><div><label className="mb-1 block text-xs font-bold">Nội dung</label><input required value={revenueDescription} onChange={(e) => setRevenueDescription(e.target.value)} className={inputClass}/></div><div><label className="mb-1 block text-xs font-bold">Khách hàng</label><input value={revenueCustomer} onChange={(e) => setRevenueCustomer(e.target.value)} className={inputClass}/></div><div><label className="mb-1 block text-xs font-bold">Số tiền (VNĐ)</label><input required min="1" type="number" value={revenueAmount} onChange={(e) => setRevenueAmount(e.target.value)} className={inputClass}/></div><div><label className="mb-1 block text-xs font-bold">Ngày thu tiền</label><input required type="date" value={revenueDate} onChange={(e) => setRevenueDate(e.target.value)} className={inputClass}/></div><div className="flex justify-end gap-2"><button type="button" onClick={() => { setShowRevenueForm(false); setEditingRevenueId(null); }} className="rounded-xl border px-4 py-2 text-sm">Hủy</button><button disabled={saving} className="rounded-xl bg-teal-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-50">{saving ? "Đang lưu..." : editingRevenueId ? "Cập nhật doanh thu" : "Lưu doanh thu"}</button></div></form></div>}
 
       {showExpenseForm && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4"><form onSubmit={addExpense} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-2xl"><div className="flex items-center justify-between"><h2 className="text-lg font-extrabold">Thêm khoản chi phí</h2><button type="button" onClick={() => setShowExpenseForm(false)} className="text-2xl text-slate-400">×</button></div><div><label className="mb-1 block text-xs font-bold">Danh mục</label><select value={expenseCategory} onChange={(e) => setExpenseCategory(e.target.value)} className={inputClass}><option>Marketing</option><option>Vận hành</option><option>Công cụ</option><option>Thưởng nhân viên</option><option>Khác</option></select></div><div><label className="mb-1 block text-xs font-bold">Nội dung</label><input required value={expenseDescription} onChange={(e) => setExpenseDescription(e.target.value)} className={inputClass}/></div><div><label className="mb-1 block text-xs font-bold">Người nhận / đơn vị</label><input value={expensePaidTo} onChange={(e) => setExpensePaidTo(e.target.value)} className={inputClass}/></div><div><label className="mb-1 block text-xs font-bold">Số tiền (VNĐ)</label><input required min="1" type="number" value={expenseAmount} onChange={(e) => setExpenseAmount(e.target.value)} className={inputClass}/></div><div><label className="mb-1 block text-xs font-bold">Ngày chi</label><input required type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} className={inputClass}/></div><div className="flex justify-end gap-2"><button type="button" onClick={() => setShowExpenseForm(false)} className="rounded-xl border px-4 py-2 text-sm">Hủy</button><button disabled={saving} className="rounded-xl bg-teal-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-50">{saving ? "Đang lưu..." : "Lưu chi phí"}</button></div></form></div>}
     </div>
