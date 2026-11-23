@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import SiteLogo from "@/components/SiteLogo";
 
 type Profile = {
   id: string;
@@ -277,18 +278,11 @@ export default function Dashboard() {
     <div className="flex min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 text-slate-800">
       {/* SIDEBAR */}
       <aside className="hidden w-64 shrink-0 border-r border-sky-100 bg-white p-5 shadow-sm md:flex md:flex-col">
-        <a href="/" className="mb-10 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-blue-600 text-xl font-black text-white shadow-lg shadow-sky-200">
-            C
-          </div>
-          <div>
-            <span className="text-2xl font-black tracking-tight text-sky-700">
-              CVISION
-            </span>
-            <p className="text-[9px] font-bold tracking-[0.2em] text-sky-500">
-              ADMIN WORKSPACE
-            </p>
-          </div>
+        <a href="/" className="mb-10 flex flex-col items-start gap-2" aria-label="CVISION - Trang chủ">
+          <SiteLogo size="large" />
+          <p className="pl-1 text-[9px] font-bold tracking-[0.2em] text-sky-500">
+            ADMIN WORKSPACE
+          </p>
         </a>
 
         <p className="mb-4 px-3 text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-400">
@@ -322,6 +316,18 @@ export default function Dashboard() {
                 ♙
               </span>
               Quản lý nhân viên
+            </a>
+          )}
+
+          {isAdmin && (
+            <a
+              href="/admin/brand-settings"
+              className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-sky-50 hover:text-sky-700"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50 text-lg text-sky-600">
+                ⚙
+              </span>
+              Cài đặt thương hiệu
             </a>
           )}
         </nav>

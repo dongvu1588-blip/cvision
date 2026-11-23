@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import SiteLogo from "@/components/SiteLogo";
 
 type PublicJob = {
   id: string;
@@ -113,13 +114,8 @@ export default function Home() {
       {/* HEADER */}
       <header className="sticky top-0 z-50 border-b border-sky-100 bg-white/90 shadow-sm backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-300 via-blue-500 to-blue-700 text-xl font-extrabold text-white shadow-lg shadow-blue-200">
-              C
-            </div>
-            <span className="bg-gradient-to-r from-sky-500 to-blue-700 bg-clip-text text-2xl font-extrabold tracking-tight text-transparent">
-              CVISION
-            </span>
+          <Link href="/" aria-label="CVISION - Trang chủ">
+            <SiteLogo size="large" />
           </Link>
 
           <nav className="hidden items-center gap-8 text-sm font-semibold md:flex">
