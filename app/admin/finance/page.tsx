@@ -70,7 +70,7 @@ export default function FinancePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"overview" | "income" | "revenue" | "expenses">("overview");
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [month, setMonth] = useState("");
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [revenues, setRevenues] = useState<Revenue[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -81,12 +81,12 @@ export default function FinancePage() {
   const [revenueDescription, setRevenueDescription] = useState("");
   const [revenueCustomer, setRevenueCustomer] = useState("");
   const [revenueAmount, setRevenueAmount] = useState("");
-  const [revenueDate, setRevenueDate] = useState(new Date().toISOString().slice(0, 10));
+  const [revenueDate, setRevenueDate] = useState("");
   const [expenseCategory, setExpenseCategory] = useState("Marketing");
   const [expenseDescription, setExpenseDescription] = useState("");
   const [expensePaidTo, setExpensePaidTo] = useState("");
   const [expenseAmount, setExpenseAmount] = useState("");
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().slice(0, 10));
+  const [expenseDate, setExpenseDate] = useState("");
 
   const isAdmin = role === "admin";
 
@@ -147,6 +147,10 @@ export default function FinancePage() {
   }
 
   useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    setMonth(today.slice(0, 7));
+    setRevenueDate(today);
+    setExpenseDate(today);
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
