@@ -52,6 +52,7 @@ const menu = [
   { icon: "✉", name: "Dịch vụ CV", href: "/admin/cv-requests" },
   { icon: "▣", name: "Quản lý CV", href: "/admin/cv-management" },
   { icon: "▧", name: "Báo cáo", href: "/admin/reports" },
+  { icon: "◈", name: "Quản lý tài chính", href: "/admin/finance" },
 ];
 
 const inputClass =

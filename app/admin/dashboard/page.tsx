@@ -4,7 +4,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import SiteLogo from "@/components/SiteLogo";
 
 type Profile = {
   id: string;
@@ -28,9 +27,19 @@ const menu = [
   { icon: "▦", name: "Dashboard", href: "/admin/dashboard" },
   { icon: "♙", name: "Ứng viên", href: "/admin/candidates" },
   { icon: "▤", name: "Quản lý công việc", href: "/admin/jobs" },
+  { icon: "▥", name: "Tiến độ tuyển dụng", href: "/admin/pipeline" },
   { icon: "✉", name: "Dịch vụ CV", href: "/admin/cv-requests" },
   { icon: "▣", name: "Quản lý CV", href: "/admin/cv-management" },
-  { icon: "▧", name: "Báo cáo", href: "/admin/reports" },
+  { icon: "◈", name: "Quản lý tài chính", href: "/admin/finance" },
+];
+
+const stages = [
+  { name: "Nộp CV", color: "bg-sky-500" },
+  { name: "Hẹn phỏng vấn", color: "bg-blue-500" },
+  { name: "Phỏng vấn", color: "bg-indigo-500" },
+  { name: "Đàm phán lương", color: "bg-cyan-500" },
+  { name: "Nhận Offer", color: "bg-blue-600" },
+  { name: "Đi làm", color: "bg-sky-700" },
 ];
 
 function percentage(value: number, total: number) {
@@ -237,6 +246,18 @@ export default function Dashboard() {
     },
   ];
 
+  const stageCounts = stages.map((stage) => ({
+    ...stage,
+    count: visibleApplications.filter(
+      (application) => application.stage === stage.name
+    ).length,
+  }));
+
+  const maxStageCount = Math.max(
+    1,
+    ...stageCounts.map((stage) => stage.count)
+  );
+
   const recruiterStats = profiles
     .filter((profile) => profile.role === "recruiter")
     .map((profile) => {
@@ -278,11 +299,18 @@ export default function Dashboard() {
     <div className="flex min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 text-slate-800">
       {/* SIDEBAR */}
       <aside className="hidden w-64 shrink-0 border-r border-sky-100 bg-white p-5 shadow-sm md:flex md:flex-col">
-        <a href="/" className="mb-10 flex flex-col items-start gap-2" aria-label="CVISION - Trang chủ">
-          <SiteLogo size="large" />
-          <p className="pl-1 text-[9px] font-bold tracking-[0.2em] text-sky-500">
-            ADMIN WORKSPACE
-          </p>
+        <a href="/" className="mb-10 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-blue-600 text-xl font-black text-white shadow-lg shadow-sky-200">
+            C
+          </div>
+          <div>
+            <span className="text-2xl font-black tracking-tight text-sky-700">
+              CVISION
+            </span>
+            <p className="text-[9px] font-bold tracking-[0.2em] text-sky-500">
+              ADMIN WORKSPACE
+            </p>
+          </div>
         </a>
 
         <p className="mb-4 px-3 text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-400">
@@ -316,18 +344,6 @@ export default function Dashboard() {
                 ♙
               </span>
               Quản lý nhân viên
-            </a>
-          )}
-
-          {isAdmin && (
-            <a
-              href="/admin/brand-settings"
-              className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-sky-50 hover:text-sky-700"
-            >
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50 text-lg text-sky-600">
-                ⚙
-              </span>
-              Cài đặt thương hiệu
             </a>
           )}
         </nav>
@@ -414,6 +430,71 @@ export default function Dashboard() {
               <p className="mt-2 text-xs text-slate-400">{item.note}</p>
             </div>
           ))}
+        </section>
+
+        {/* RECRUITMENT STAGES */}
+        <section className="mt-8 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm md:p-6">
+          <div className="mb-6">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-500">
+              Recruitment Pipeline
+            </span>
+            <h2 className="mt-2 text-xl font-black text-slate-800">
+              Tiến độ tuyển dụng
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Số lượng hồ sơ tại từng giai đoạn.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            {stageCounts.map((stage) => (
+              <div
+                key={stage.name}
+                className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/80 to-white p-4"
+              >
+                <div className={`mb-4 h-1.5 rounded-full ${stage.color}`} />
+                <p className="min-h-10 text-sm font-semibold text-slate-600">
+                  {stage.name}
+                </p>
+                <p className="mt-2 text-2xl font-black text-slate-800">
+                  {loading ? "..." : stage.count}
+                </p>
+                <p className="text-xs text-slate-400">Hồ sơ</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 border-t border-sky-100 pt-6">
+            <h3 className="mb-5 text-sm font-extrabold text-slate-700">
+              Biểu đồ phân bổ hồ sơ theo giai đoạn
+            </h3>
+
+            <div className="space-y-5">
+              {stageCounts.map((stage) => (
+                <div
+                  key={`bar-${stage.name}`}
+                  className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[150px_1fr_44px]"
+                >
+                  <span className="text-sm font-medium text-slate-600">
+                    {stage.name}
+                  </span>
+
+                  <div className="h-3 overflow-hidden rounded-full bg-sky-50">
+                    <div
+                      className={`h-full rounded-full ${stage.color} transition-all duration-500`}
+                      style={{
+                        width: `${(stage.count / maxStageCount) * 100}%`,
+                      }}
+                    />
+                  </div>
+
+                  <span className="text-sm font-bold tabular-nums text-sky-700 sm:text-right">
+                    {loading ? "..." : stage.count}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </section>
 
         {/* RECRUITER PERFORMANCE */}
