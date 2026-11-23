@@ -464,6 +464,45 @@ export default function CandidatesPage() {
     }
   }
 
+  async function rejectCandidate(candidate: Candidate) {
+    if (!isAdmin) {
+      alert("Chỉ Admin mới có quyền chuyển CV sang không hợp lệ.");
+      return;
+    }
+
+    if (approvedCandidateIds.includes(candidate.id)) {
+      alert("CV này đã được duyệt thưởng nên không thể chuyển sang không hợp lệ.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Chuyển CV của "${candidate.full_name}" sang tab CV không hợp lệ?`
+    );
+    if (!confirmed) return;
+
+    setDeletingCandidateId(candidate.id);
+
+    const { error } = await supabase
+      .from("candidates")
+      .update({ status: "invalid" })
+      .eq("id", candidate.id);
+
+    setDeletingCandidateId(null);
+
+    if (error) {
+      alert("Không thể chuyển CV: " + error.message);
+      return;
+    }
+
+    setCandidates((current) =>
+      current.map((item) =>
+        item.id === candidate.id ? { ...item, status: "invalid" } : item
+      )
+    );
+    setActiveTab("invalid");
+    alert("Đã chuyển CV sang tab CV không hợp lệ. Hồ sơ vẫn được lưu để giữ lịch sử ứng tuyển.");
+  }
+
   async function openCv(candidate: Candidate, download = false) {
     if (!candidate.cv_url) {
       alert("Ứng viên này chưa đính kèm CV PDF.");
@@ -766,13 +805,30 @@ export default function CandidatesPage() {
                                     : "✓ Duyệt CV +30.000đ"}
                               </button>
                             )}
+                            {isAdmin && activeTab === "valid" && (
+                              <button
+                                disabled={
+                                  deletingCandidateId === candidate.id ||
+                                  approvedCandidateIds.includes(candidate.id)
+                                }
+                                onClick={() => rejectCandidate(candidate)}
+                                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                title={
+                                  approvedCandidateIds.includes(candidate.id)
+                                    ? "CV đã được duyệt thưởng, không thể chuyển trạng thái"
+                                    : "Chuyển sang CV không hợp lệ"
+                                }
+                              >
+                                {deletingCandidateId === candidate.id ? "Đang chuyển..." : "Không duyệt"}
+                              </button>
+                            )}
                             {isAdmin && (
                               <button
                                 disabled={deletingCandidateId === candidate.id}
                                 onClick={() => deleteCandidate(candidate)}
                                 className="rounded-lg border border-red-100 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
                               >
-                                {deletingCandidateId === candidate.id ? "Đang xóa..." : "Xóa"}
+                                {deletingCandidateId === candidate.id ? "Đang xử lý..." : "Xóa"}
                               </button>
                             )}
                           </div>
