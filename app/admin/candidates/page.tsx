@@ -57,6 +57,27 @@ const menu = [
 const inputClass =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100";
 
+const JSON_COPY_PROMPT = `Hãy đọc CV PDF tôi gửi kèm và trích xuất thông tin ứng viên.
+Chỉ lấy thông tin có trong CV, không tự suy đoán hoặc bịa thông tin.
+Nếu không tìm thấy thông tin, hãy để null; riêng languages và skills có thể để mảng rỗng [].
+Trả về duy nhất một JSON hợp lệ, không giải thích, không dùng dấu Markdown.
+
+Cấu trúc JSON:
+{
+  "full_name": null,
+  "birth_year": null,
+  "phone": null,
+  "email": null,
+  "address": null,
+  "province": null,
+  "education": null,
+  "languages": [],
+  "skills": [],
+  "experience": null,
+  "latest_position": null,
+  "latest_company": null
+}`;
+
 function toText(value: unknown): string {
   if (Array.isArray(value)) return value.map(String).join(", ");
   if (value === null || value === undefined) return "";
@@ -88,6 +109,15 @@ export default function CandidatesPage() {
   const [deletingCandidateId, setDeletingCandidateId] = useState<string | null>(null);
 
   const isAdmin = currentRole === "admin";
+
+  async function copyJsonPrompt() {
+    try {
+      await navigator.clipboard.writeText(JSON_COPY_PROMPT);
+      alert("Đã copy hướng dẫn. Hãy mở ChatGPT, tải CV PDF lên và dán hướng dẫn này vào.");
+    } catch {
+      alert("Trình duyệt không cho phép copy tự động. Hãy kiểm tra quyền Clipboard hoặc mở website bằng HTTPS.");
+    }
+  }
 
   async function loadCurrentUser() {
     const {
@@ -210,7 +240,11 @@ export default function CandidatesPage() {
     if (!value.trim()) return;
 
     try {
-      const parsed = JSON.parse(value) as CandidateJson;
+      const cleanedValue = value
+        .trim()
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/, "");
+      const parsed = JSON.parse(cleanedValue) as CandidateJson;
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new Error("JSON phải là một đối tượng thông tin ứng viên.");
       }
@@ -684,7 +718,18 @@ export default function CandidatesPage() {
             <form onSubmit={addCandidate} className="space-y-5 p-5 sm:p-7">
               <div className="grid gap-5 lg:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">Dán JSON thông tin ứng viên</label>
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <label className="block text-sm font-bold text-slate-700">
+                      Dán JSON thông tin ứng viên
+                    </label>
+                    <button
+                      type="button"
+                      onClick={copyJsonPrompt}
+                      className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-sky-700"
+                    >
+                      📋 Copy JSON mẫu
+                    </button>
+                  </div>
                   <textarea
                     value={jsonText}
                     onChange={(event) => handleJsonChange(event.target.value)}
