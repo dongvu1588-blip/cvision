@@ -2,7 +2,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
 type Profile = {
@@ -49,6 +50,8 @@ function percentage(value: number, total: number) {
 
 export default function Dashboard() {
   const router = useRouter();
+  const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [applications, setApplications] = useState<Application[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -297,6 +300,105 @@ export default function Dashboard() {
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 text-slate-800">
+      {/* MOBILE MENU */}
+      <div className="fixed inset-x-0 top-0 z-40 border-b border-sky-100 bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:hidden">
+        <div className="flex items-center justify-between">
+          <Link href="/admin/dashboard" className="flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 font-black text-white shadow-sm">
+              C
+            </span>
+            <span className="text-lg font-black tracking-tight text-sky-700">CVISION</span>
+          </Link>
+          <button
+            type="button"
+            aria-label={mobileMenuOpen ? "Đóng menu" : "Mở menu"}
+            aria-expanded={mobileMenuOpen}
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 text-2xl font-bold text-sky-700"
+          >
+            {mobileMenuOpen ? "×" : "☰"}
+          </button>
+        </div>
+      </div>
+
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            aria-label="Đóng menu"
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="absolute right-0 top-0 flex h-full w-[min(86vw,340px)] flex-col overflow-y-auto bg-white p-5 shadow-2xl">
+            <div className="mb-6 flex items-center justify-between border-b border-sky-100 pb-4">
+              <div>
+                <p className="text-xl font-black text-sky-700">CVISION</p>
+                <p className="text-[10px] font-bold tracking-[0.18em] text-sky-500">ADMIN WORKSPACE</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Đóng menu"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-2xl text-slate-600"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="mb-3 px-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-400">
+              Workspace
+            </p>
+            <nav className="space-y-2">
+              {menu.map((item) => {
+                const active = pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                      active
+                        ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md shadow-sky-100"
+                        : "text-slate-700 hover:bg-sky-50 hover:text-sky-700"
+                    }`}
+                  >
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50/70 text-lg">
+                      {item.icon}
+                    </span>
+                    {item.name}
+                  </Link>
+                );
+              })}
+              {isAdmin && (
+                <Link
+                  href="/admin/users"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                    pathname === "/admin/users"
+                      ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md"
+                      : "text-slate-700 hover:bg-sky-50 hover:text-sky-700"
+                  }`}
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg text-lg">♙</span>
+                  Quản lý nhân viên
+                </Link>
+              )}
+            </nav>
+
+            <div className="mt-auto border-t border-sky-100 pt-5">
+              <p className="mb-3 text-sm font-semibold text-slate-700">{currentName || "Tài khoản"}</p>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="min-h-11 w-full rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
+              >
+                Đăng xuất
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SIDEBAR */}
       <aside className="hidden w-64 shrink-0 border-r border-sky-100 bg-white p-5 shadow-sm md:flex md:flex-col">
         <a href="/" className="mb-10 flex items-center gap-3">
@@ -360,7 +462,7 @@ export default function Dashboard() {
       </aside>
 
       {/* MAIN */}
-      <main className="min-w-0 flex-1 p-4 sm:p-5 md:p-8">
+      <main className="min-w-0 flex-1 px-4 pb-4 pt-20 sm:px-5 sm:pb-5 md:p-8">
         {/* HEADER */}
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-sky-100 bg-white/90 p-5 shadow-sm backdrop-blur">
           <div>
