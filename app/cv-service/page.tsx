@@ -6,10 +6,40 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 const servicePackages = [
-  { name: "CV Basic", price: "29.000 đồng", description: "Thiết kế và trình bày CV cơ bản" },
-  { name: "CV Professional", price: "59.000 đồng", description: "Thiết kế chuyên nghiệp, tối ưu nội dung, 1 lần chỉnh sửa" },
-  { name: "CV Multilingual", price: "99.000 đồng", description: "CV đa ngôn ngữ, tối ưu theo vị trí ứng tuyển, 2 lần chỉnh sửa" },
-  { name: "Career Package", price: "149.000 đồng", description: "CV chuyên nghiệp, Cover Letter, tối ưu LinkedIn và tư vấn nghề nghiệp" },
+  {
+    name: "BASIC",
+    price: "19.000 VNĐ",
+    description: "Thiết kế CV theo mẫu có sẵn; Chỉnh sửa thông tin cá nhân; Sắp xếp bố cục và định dạng; Bàn giao file PDF.",
+    features: [
+      "Thiết kế CV theo mẫu có sẵn.",
+      "Chỉnh sửa thông tin cá nhân.",
+      "Sắp xếp bố cục và định dạng.",
+      "Bàn giao file PDF.",
+    ],
+  },
+  {
+    name: "PROFESSIONAL",
+    price: "39.000 VNĐ",
+    description: "Thiết kế CV theo ngành nghề; Chỉnh sửa và tối ưu nội dung; Sắp xếp kinh nghiệm và kỹ năng; Tối ưu bố cục chuyên nghiệp; Bàn giao PDF và file chỉnh sửa.",
+    features: [
+      "Thiết kế CV theo ngành nghề.",
+      "Chỉnh sửa và tối ưu nội dung.",
+      "Sắp xếp kinh nghiệm và kỹ năng.",
+      "Tối ưu bố cục chuyên nghiệp.",
+      "Bàn giao PDF và file chỉnh sửa.",
+    ],
+  },
+  {
+    name: "PREMIUM",
+    price: "69.000 VNĐ",
+    description: "Thiết kế CV chuyên nghiệp theo vị trí ứng tuyển; Tối ưu nội dung và từ khóa CV; Tư vấn định hướng hồ sơ ứng tuyển; Hỗ trợ tối ưu LinkedIn cơ bản.",
+    features: [
+      "Thiết kế CV chuyên nghiệp theo vị trí ứng tuyển.",
+      "Tối ưu nội dung và từ khóa CV.",
+      "Tư vấn định hướng hồ sơ ứng tuyển.",
+      "Hỗ trợ tối ưu LinkedIn cơ bản.",
+    ],
+  },
 ];
 
 const inputClass =
@@ -35,7 +65,7 @@ export default function CVServicePage() {
   const [awards, setAwards] = useState("");
   const [referee, setReferee] = useState("");
   const [consent, setConsent] = useState(false);
-  const [serviceType, setServiceType] = useState("CV Basic");
+  const [serviceType, setServiceType] = useState("BASIC");
   const [extraRequest, setExtraRequest] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -62,7 +92,7 @@ export default function CVServicePage() {
     setAwards("");
     setReferee("");
     setConsent(false);
-    setServiceType("CV Basic");
+    setServiceType("BASIC");
     setExtraRequest("");
 
     const fileInput = document.getElementById("cv-request-photo") as HTMLInputElement | null;
@@ -210,7 +240,7 @@ export default function CVServicePage() {
           <p className="mt-3 text-sm text-slate-500">Chọn gói dịch vụ phù hợp với nhu cầu của bạn.</p>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {servicePackages.map((item, index) => (
             <button
               key={item.name}
@@ -238,7 +268,11 @@ export default function CVServicePage() {
               </div>
               <span className="block text-lg font-extrabold text-slate-800">{item.name}</span>
               <span className="mt-3 block text-2xl font-black text-sky-600">{item.price}</span>
-              <span className="mt-3 block min-h-16 text-sm leading-6 text-slate-500">{item.description}</span>
+              <ul className="mt-4 min-h-36 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-600">
+                {item.features.map((feature) => (
+                  <li key={feature}>{feature}</li>
+                ))}
+              </ul>
               <span className="mt-5 block text-sm font-bold text-sky-700">
                 {serviceType === item.name ? "✓ Đã chọn gói" : "Chọn gói này →"}
               </span>
