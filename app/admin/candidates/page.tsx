@@ -561,7 +561,7 @@ export default function CandidatesPage() {
 
   return (
     <div className="flex min-h-screen bg-[#f7f9fc] text-slate-800">
-      <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white p-5 md:flex md:flex-col">
+      <aside className="sticky top-0 z-30 hidden h-screen w-64 shrink-0 self-start overflow-y-auto border-r border-slate-200 bg-white p-5 md:flex md:flex-col">
         <a href="/" className="mb-10 flex flex-col items-start gap-2" aria-label="CVISION - Trang chủ">
           <SiteLogo size="large" />
           <p className="pl-1 text-[9px] font-bold tracking-[0.2em] text-sky-500">
