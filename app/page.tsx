@@ -121,7 +121,7 @@ export default function Home() {
   }, [jobs, jobKeyword, jobLocation]);
 
   return (
-    <main className="min-h-screen overflow-hidden bg-white text-slate-700">
+    <main className="min-h-screen bg-white text-slate-700">
       {/* HEADER */}
       <header className="sticky top-0 z-50 border-b border-sky-100 bg-white/90 shadow-sm backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
@@ -155,41 +155,41 @@ export default function Home() {
         <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-20 md:grid-cols-2 md:py-28">
           <div>
             <span className="inline-flex rounded-full border border-sky-200 bg-white/80 px-4 py-2 text-sm font-bold text-blue-600 shadow-sm">
-              ✦ Kết nối nhân tài – Kiến tạo tương lai
+              ✦ Thiết kế CV chuyên nghiệp – Nâng tầm hồ sơ
             </span>
 
             <h1 className="mt-7 text-4xl font-extrabold leading-tight tracking-tight text-blue-950 md:text-6xl">
-              Tìm kiếm cơ hội nghề nghiệp cùng{" "}
-              <span className="bg-gradient-to-r from-sky-400 via-blue-500 to-blue-700 bg-clip-text text-transparent">
-                CVISION
+              Tạo CV ấn tượng{" "}
+              <span className="block">Chinh phục nhà tuyển dụng</span>
+              <span className="block bg-gradient-to-r from-sky-400 via-blue-500 to-blue-700 bg-clip-text text-transparent">
+                Cùng CVISION
               </span>
             </h1>
 
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-              Kết nối ứng viên với doanh nghiệp phù hợp.
-              Đồng hành cùng bạn từ hồ sơ ứng tuyển đến khi chính thức đi làm.
+              CVISION giúp bạn sở hữu một bản CV chuyên nghiệp, chỉn chu và phù hợp với vị trí ứng tuyển. Từ thiết kế, chỉnh sửa nội dung đến tối ưu hồ sơ, chúng tôi đồng hành cùng bạn trên hành trình phát triển sự nghiệp.
             </p>
 
             <div className="mt-9 flex flex-wrap gap-4">
               <Link
-                href="#jobs"
+                href="/cv-service"
                 className="rounded-2xl bg-gradient-to-r from-sky-400 via-blue-500 to-blue-700 px-7 py-4 font-bold text-white shadow-xl shadow-blue-200 transition hover:-translate-y-1 hover:shadow-blue-300"
               >
-                Khám phá việc làm →
+                Thiết kế CV ngay →
               </Link>
 
               <Link
                 href="#services"
                 className="rounded-2xl border border-sky-200 bg-white/90 px-7 py-4 font-bold text-blue-600 shadow-sm transition hover:-translate-y-1 hover:border-blue-400"
               >
-                Dịch vụ CV
+                Khám phá dịch vụ
               </Link>
             </div>
 
             <div className="mt-10 flex flex-wrap gap-7 text-sm text-slate-500">
               <div>
                 <p className="text-xl font-extrabold text-blue-600">CVISION</p>
-                <p>Nền tảng tuyển dụng</p>
+                <p>Thiết kế CV chuyên nghiệp</p>
               </div>
               <div>
                 <p className="text-xl font-extrabold text-blue-600">Career</p>
@@ -205,9 +205,9 @@ export default function Home() {
             <div className="relative rounded-[2rem] border border-white bg-white/75 p-6 shadow-2xl shadow-blue-200/60 backdrop-blur-xl md:p-8">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-500">CVISION Career</p>
+                  <p className="text-sm font-medium text-slate-500">CVISION – CV Design</p>
                   <h2 className="mt-1 text-2xl font-extrabold text-blue-950">
-                    Cơ hội dành cho bạn
+                    Hồ sơ chuyên nghiệp bắt đầu từ đây
                   </h2>
                 </div>
                 <div className="rounded-2xl bg-gradient-to-br from-sky-200 to-blue-500 p-4 text-2xl text-white shadow-lg">
@@ -217,9 +217,9 @@ export default function Home() {
 
               <div className="mt-8 space-y-4">
                 {[
-                  ["💼", "Cơ hội việc làm", "Tiếp cận nhiều vị trí phù hợp"],
-                  ["📄", "Hồ sơ chuyên nghiệp", "Hỗ trợ hoàn thiện CV của bạn"],
-                  ["🤝", "Đồng hành tuyển dụng", "Theo dõi quá trình giới thiệu"],
+                  ["🎨", "Thiết kế CV chuyên nghiệp", "Mẫu CV hiện đại, phù hợp với từng ngành nghề."],
+                  ["📝", "Chỉnh sửa và tối ưu nội dung", "Sắp xếp kinh nghiệm, kỹ năng và thông tin nổi bật."],
+                  ["✨", "Nâng cấp hồ sơ ứng tuyển", "Tối ưu CV theo vị trí công việc và yêu cầu tuyển dụng."],
                 ].map(([icon, title, desc]) => (
                   <div
                     key={title}
