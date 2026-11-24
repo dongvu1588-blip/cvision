@@ -23,6 +23,15 @@ type Job = {
   companies: { name: string } | null;
 };
 
+type ExtractedJob = {
+  title: string;
+  company: string;
+  location: string;
+  salary: string;
+  description: string;
+  requirements: string;
+};
+
 type JobForm = {
   title: string;
   company_id: string;
@@ -45,18 +54,6 @@ const EMPTY_FORM: JobForm = {
 
 const JOB_STATUSES = ["Đang tuyển", "Tạm dừng", "Đã đóng"];
 
-const JOB_JSON_PROMPT = `Hãy đọc JD tôi gửi và trích xuất thông tin thành MỘT JSON hợp lệ.
-Chỉ trả về JSON, không giải thích, không Markdown, không dùng dấu code fence.
-Không tự bịa thông tin; trường không có trong JD để chuỗi rỗng.
-Trả đúng cấu trúc:
-{
-  "title": "",
-  "company": "",
-  "location": "",
-  "salary": "",
-  "description": "",
-  "requirements": ""
-}`;
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -70,9 +67,12 @@ export default function JobsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("Tất cả");
   const [companyFilter, setCompanyFilter] = useState("Tất cả");
-  const [jsonText, setJsonText] = useState("");
-  const [jsonError, setJsonError] = useState("");
-  const [jsonNotice, setJsonNotice] = useState("");
+  const [jdPdfFile, setJdPdfFile] = useState<File | null>(null);
+  const [analyzingJd, setAnalyzingJd] = useState(false);
+  const [savingExtractedJds, setSavingExtractedJds] = useState(false);
+  const [extractedJds, setExtractedJds] = useState<ExtractedJob[]>([]);
+  const [jdPdfError, setJdPdfError] = useState("");
+  const [jdPdfNotice, setJdPdfNotice] = useState("");
 
   async function loadData() {
     setLoading(true);
@@ -126,236 +126,113 @@ export default function JobsPage() {
   function resetForm() {
     setForm(EMPTY_FORM);
     setEditingJob(null);
-    setJsonText("");
-    setJsonError("");
-    setJsonNotice("");
+    setJdPdfFile(null);
+    setExtractedJds([]);
+    setJdPdfError("");
+    setJdPdfNotice("");
   }
 
-  async function copyJobPrompt() {
+  async function analyzeJdPdf() {
+    setJdPdfError("");
+    setJdPdfNotice("");
+    setExtractedJds([]);
+
+    if (!jdPdfFile) {
+      setJdPdfError("Vui lòng chọn file JD định dạng PDF.");
+      return;
+    }
+
+    if (jdPdfFile.type !== "application/pdf" && !jdPdfFile.name.toLowerCase().endsWith(".pdf")) {
+      setJdPdfError("Chỉ chấp nhận file PDF.");
+      return;
+    }
+
+    if (jdPdfFile.size <= 0 || jdPdfFile.size > 10 * 1024 * 1024) {
+      setJdPdfError("File PDF phải lớn hơn 0 và không vượt quá 10 MB.");
+      return;
+    }
+
+    setAnalyzingJd(true);
     try {
-      await navigator.clipboard.writeText(JOB_JSON_PROMPT);
-      setJsonError("");
-      setJsonNotice("Đã sao chép hướng dẫn. Hãy gửi hướng dẫn này cùng JD cho ChatGPT.");
-    } catch {
-      setJsonError("Không thể sao chép tự động. Bạn có thể mở phần 'Xem hướng dẫn' và sao chép thủ công.");
-    }
-  }
+      const body = new FormData();
+      body.append("file", jdPdfFile);
 
-  function decodeHtmlEntities(value: string): string {
-    return value
-      .replace(/&quot;/gi, '"')
-      .replace(/&apos;|&#39;|&#x27;/gi, "'")
-      .replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<")
-      .replace(/&gt;/gi, ">")
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) =>
-        String.fromCodePoint(parseInt(hex, 16))
-      )
-      .replace(/&#([0-9]+);/g, (_, number: string) =>
-        String.fromCodePoint(Number(number))
-      );
-  }
+      const response = await fetch("/api/ai/read-jd", {
+        method: "POST",
+        body,
+      });
 
-  function extractJsonBlock(value: string): string {
-    const start = value.search(/[\[{]/);
-    if (start < 0) {
-      throw new Error("Không tìm thấy JSON. Hãy dán phần kết quả JSON từ ChatGPT.");
-    }
+      const result = await response.json();
 
-    const opening = value[start];
-    const closing = opening === "{" ? "}" : "]";
-    let depth = 0;
-    let inString = false;
-    let escaped = false;
-
-    for (let i = start; i < value.length; i++) {
-      const char = value[i];
-
-      if (inString) {
-        if (escaped) {
-          escaped = false;
-        } else if (char === "\\") {
-          escaped = true;
-        } else if (char === '"') {
-          inString = false;
-        }
-        continue;
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Không thể đọc file PDF.");
       }
 
-      if (char === '"') {
-        inString = true;
-      } else if (char === opening) {
-        depth++;
-      } else if (char === closing) {
-        depth--;
-        if (depth === 0) return value.slice(start, i + 1);
-      }
-    }
-
-    throw new Error("JSON chưa đầy đủ dấu ngoặc. Hãy copy lại toàn bộ kết quả ChatGPT.");
-  }
-
-  function parseJobJson(input: string): Record<string, unknown> {
-    let raw = decodeHtmlEntities(input)
-      .replace(/^\uFEFF/, "")
-      .trim()
-      .replace(/^```(?:json|javascript|js)?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-
-    if (!raw) throw new Error("Bạn chưa dán nội dung JD.");
-
-    const attempts: string[] = [raw];
-
-    // Xử lý trường hợp toàn bộ JSON được bọc trong một chuỗi JSON.
-    try {
-      const decoded = JSON.parse(raw);
-      if (typeof decoded === "string") attempts.unshift(decoded);
-      else if (decoded && typeof decoded === "object") {
-        const item = Array.isArray(decoded) ? decoded[0] : decoded;
-        if (item && typeof item === "object" && !Array.isArray(item)) {
-          return item as Record<string, unknown>;
-        }
-      }
-    } catch {
-      // Tiếp tục thử các dạng văn bản khác.
-    }
-
-    // Nếu có lời dẫn trước/sau JSON, chỉ lấy khối JSON cân bằng.
-    try {
-      attempts.push(extractJsonBlock(raw));
-    } catch {
-      // Giữ lỗi để báo ở cuối nếu không có cách nào đọc được.
-    }
-
-    for (const candidate of [...attempts]) {
-      // JSON bị escape kiểu {\"title\":\"...\"}
-      attempts.push(candidate.replace(/\\"/g, '"'));
-      // Một số nội dung copy có dấu gạch chéo ngược thừa ngay trước dấu đóng } hoặc ].
-      attempts.push(candidate.replace(/\\(?=\s*[}\]])/g, ""));
-      // Chuẩn hóa dấu nháy cong, dấu phẩy thừa và ký tự HTML.
-      attempts.push(
-        candidate
-          .replace(/[“”]/g, '"')
-          .replace(/[‘’]/g, "'")
-          .replace(/\\(?=\s*[}\]])/g, "")
-          .replace(/,\s*([}\]])/g, "$1")
-      );
-    }
-
-    const uniqueAttempts = [...new Set(attempts)];
-
-    for (const candidate of uniqueAttempts) {
-      try {
-        let parsed: unknown = JSON.parse(candidate.trim());
-
-        if (typeof parsed === "string") {
-          parsed = JSON.parse(parsed);
-        }
-
-        const data = Array.isArray(parsed) ? parsed[0] : parsed;
-        if (data && typeof data === "object" && !Array.isArray(data)) {
-          return data as Record<string, unknown>;
-        }
-      } catch {
-        // Thử ứng viên tiếp theo.
-      }
-    }
-
-    // Thử sửa key không có dấu nháy: {title: "..."}.
-    for (const candidate of uniqueAttempts) {
-      const normalized = candidate
-        .replace(/([{,]\s*)([A-Za-z_$][\w$-]*)(\s*:)/g, '$1"$2"$3')
-        .replace(/,\s*([}\]])/g, "$1");
-
-      try {
-        const parsed: unknown = JSON.parse(normalized);
-        const data = Array.isArray(parsed) ? parsed[0] : parsed;
-        if (data && typeof data === "object" && !Array.isArray(data)) {
-          return data as Record<string, unknown>;
-        }
-      } catch {
-        // Báo lỗi rõ ràng ở dưới.
-      }
-    }
-
-    throw new Error(
-      "Không đọc được JSON. Hãy copy toàn bộ câu trả lời ChatGPT, không chỉnh sửa nội dung trong lúc copy."
-    );
-  }
-
-  function importJobJson() {
-    setJsonError("");
-    setJsonNotice("");
-
-    try {
-      const data = parseJobJson(jsonText);
-
-      const readText = (...keys: string[]) => {
-        for (const key of keys) {
-          const value = data[key];
-          if (typeof value === "string" || typeof value === "number") {
-            return String(value).trim();
-          }
-        }
-        return "";
-      };
-
-      const companyName = readText(
-        "company",
-        "company_name",
-        "companyName",
-        "employer"
-      );
-      const normalizedCompany = companyName.toLocaleLowerCase("vi").trim();
-      const matchedCompany = companies.find(
-        (company) =>
-          company.name.toLocaleLowerCase("vi").trim() === normalizedCompany
-      );
-
-      const title = readText("title", "position", "job_title", "jobTitle");
-      const location = readText("location", "job_location", "work_location");
-      const salary = readText("salary", "salary_range", "income");
-      const description = readText(
-        "description",
-        "job_description",
-        "responsibilities"
-      );
-      const requirements = readText(
-        "requirements",
-        "job_requirements",
-        "qualifications"
-      );
-
-      if (!title && !description && !requirements) {
-        throw new Error(
-          "JSON đã đọc được nhưng không có tên vị trí, mô tả hoặc yêu cầu tuyển dụng."
-        );
+      const items = Array.isArray(result.jobs) ? result.jobs : [];
+      if (items.length === 0) {
+        throw new Error("AI chưa tìm thấy vị trí tuyển dụng trong file PDF.");
       }
 
-      setForm((current) => ({
-        ...current,
-        title: title || current.title,
-        company_id: matchedCompany?.id || "",
-        location: location || current.location,
-        salary: salary || current.salary,
-        description: description || current.description,
-        requirements: requirements || current.requirements,
-      }));
+      const normalized = items.map((item: Record<string, unknown>) => ({
+        title: String(item.title || "").trim(),
+        company: String(item.company || "").trim(),
+        location: String(item.location || "").trim(),
+        salary: String(item.salary || "").trim(),
+        description: String(item.description || "").trim(),
+        requirements: String(item.requirements || "").trim(),
+      })).filter((item: ExtractedJob) => item.title);
 
-      setJsonNotice(
-        companyName && !matchedCompany
-          ? `Đã đọc JD. Chưa tìm thấy doanh nghiệp "${companyName}" trong hệ thống; vui lòng chọn doanh nghiệp trong danh sách.`
-          : "Đã đọc JD thành công và tự động điền biểu mẫu. Vui lòng kiểm tra trước khi lưu."
-      );
+      if (normalized.length === 0) {
+        throw new Error("AI chưa trích xuất được tên vị trí tuyển dụng.");
+      }
+
+      setExtractedJds(normalized);
+      setJdPdfNotice(`AI đã đọc PDF và trích xuất ${normalized.length} vị trí. Hãy kiểm tra thông tin rồi thêm vào danh sách việc làm.`);
     } catch (error) {
-      setJsonError(
-        error instanceof Error
-          ? error.message
-          : "Không đọc được nội dung. Vui lòng kiểm tra lại."
-      );
+      setJdPdfError(error instanceof Error ? error.message : "Có lỗi khi phân tích PDF.");
+    } finally {
+      setAnalyzingJd(false);
     }
+  }
+
+  async function saveExtractedJds() {
+    if (extractedJds.length === 0) {
+      setJdPdfError("Chưa có vị trí nào được AI trích xuất.");
+      return;
+    }
+
+    setSavingExtractedJds(true);
+    setJdPdfError("");
+
+    const payload = extractedJds.map((item) => {
+      const companyName = item.company.toLocaleLowerCase("vi").trim();
+      const matchedCompany = companies.find(
+        (company) => company.name.toLocaleLowerCase("vi").trim() === companyName
+      );
+
+      return {
+        title: item.title,
+        company_id: matchedCompany?.id || null,
+        location: item.location || null,
+        salary: item.salary || null,
+        description: item.description || null,
+        requirements: item.requirements || null,
+        status: "Đang tuyển",
+      };
+    });
+
+    const { error } = await supabase.from("jobs").insert(payload);
+    setSavingExtractedJds(false);
+
+    if (error) {
+      setJdPdfError("Không thể thêm việc làm: " + error.message);
+      return;
+    }
+
+    setJdPdfNotice(`Đã thêm thành công ${payload.length} vị trí vào danh sách việc làm.`);
+    setExtractedJds([]);
+    setJdPdfFile(null);
+    await loadData();
   }
 
   async function saveJob(e: React.FormEvent<HTMLFormElement>) {
@@ -630,52 +507,90 @@ export default function JobsPage() {
               <section className="mb-6 rounded-2xl border border-sky-200 bg-gradient-to-r from-sky-50 to-blue-50 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="font-bold text-slate-800">✨ Nhập JD bằng ChatGPT</h3>
+                    <h3 className="font-bold text-slate-800">✨ AI đọc JD từ file PDF</h3>
                     <p className="mt-1 text-sm text-slate-600">
-                      Copy hướng dẫn → gửi kèm JD cho ChatGPT → dán JSON trả về → tự động điền biểu mẫu.
+                      Tải lên một file PDF chứa JD. AI sẽ tự đọc và trích xuất một hoặc nhiều vị trí tuyển dụng.
                     </p>
                   </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-sky-700">
+                    PDF · Tối đa 10 MB
+                  </span>
+                </div>
+
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    onChange={(event) => {
+                      const selected = event.target.files?.[0] || null;
+                      setJdPdfFile(selected);
+                      setExtractedJds([]);
+                      setJdPdfError("");
+                      setJdPdfNotice("");
+                    }}
+                    className="w-full rounded-xl border border-sky-100 bg-white p-3 text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-100 file:px-3 file:py-2 file:font-semibold file:text-sky-700"
+                  />
                   <button
                     type="button"
-                    onClick={copyJobPrompt}
-                    className="rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:shadow-md"
+                    onClick={analyzeJdPdf}
+                    disabled={!jdPdfFile || analyzingJd}
+                    className="shrink-0 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Copy hướng dẫn ChatGPT
+                    {analyzingJd ? "AI đang đọc PDF..." : "✨ AI đọc file PDF"}
                   </button>
                 </div>
-                <textarea
-                  value={jsonText}
-                  onChange={(e) => {
-                    setJsonText(e.target.value);
-                    setJsonError("");
-                    setJsonNotice("");
-                  }}
-                  rows={7}
-                  placeholder={'Dán JSON ChatGPT trả về vào đây...\\n{\\n  "title": "Process Quality Engineer",\\n  "company": "Luxshare",\\n  "location": "KCN Quang Châu, Bắc Giang",\\n  "salary": "20-35 triệu",\\n  "description": "...",\\n  "requirements": "..."\\n}'}
-                  className="mt-4 w-full rounded-xl border border-sky-100 bg-white p-3 font-mono text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                />
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={importJobJson}
-                    className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700"
-                  >
-                    Đọc JSON và tự điền
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setJsonText(""); setJsonError(""); setJsonNotice(""); }}
-                    className="rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-sky-50"
-                  >
-                    Xóa JSON
-                  </button>
-                  <details className="w-full pt-1 text-sm text-slate-600">
-                    <summary className="cursor-pointer font-semibold text-sky-700">Xem hướng dẫn ChatGPT</summary>
-                    <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-sky-100 bg-white p-3 text-xs">{JOB_JSON_PROMPT}</pre>
-                  </details>
-                </div>
-                {jsonError && <p className="mt-3 text-sm font-semibold text-red-600">{jsonError}</p>}
-                {jsonNotice && <p className="mt-3 text-sm font-semibold text-emerald-700">{jsonNotice}</p>}
+
+                {jdPdfFile && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    File đã chọn: {jdPdfFile.name} ({(jdPdfFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </p>
+                )}
+
+                {jdPdfError && <p className="mt-3 text-sm font-semibold text-red-600">{jdPdfError}</p>}
+                {jdPdfNotice && <p className="mt-3 text-sm font-semibold text-emerald-700">{jdPdfNotice}</p>}
+
+                {extractedJds.length > 0 && (
+                  <div className="mt-5 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="font-bold text-slate-800">Danh sách vị trí AI đã đọc ({extractedJds.length})</h4>
+                      <button
+                        type="button"
+                        onClick={saveExtractedJds}
+                        disabled={savingExtractedJds}
+                        className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {savingExtractedJds ? "Đang thêm..." : `Thêm ${extractedJds.length} việc làm vào danh sách`}
+                      </button>
+                    </div>
+
+                    {extractedJds.map((item, index) => (
+                      <div key={`${item.title}-${index}`} className="rounded-xl border border-sky-100 bg-white p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-bold text-slate-800">{index + 1}. {item.title}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {item.company || "Chưa xác định doanh nghiệp"}
+                              {item.location ? ` · ${item.location}` : ""}
+                              {item.salary ? ` · ${item.salary}` : ""}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setExtractedJds((current) => current.filter((_, i) => i !== index))}
+                            className="rounded-lg border border-red-100 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                          >
+                            Bỏ
+                          </button>
+                        </div>
+                        {item.description && <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{item.description}</p>}
+                        {item.requirements && <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600"><strong>Yêu cầu:</strong> {item.requirements}</p>}
+                      </div>
+                    ))}
+                    <p className="text-xs text-slate-500">
+                      Kiểm tra nội dung trước khi thêm. Doanh nghiệp chưa khớp tên trong hệ thống sẽ được để trống để bạn cập nhật sau.
+                    </p>
+                  </div>
+                )}
               </section>
             )}
             <div className="grid gap-5 md:grid-cols-2">
