@@ -58,16 +58,48 @@ export async function POST(request: NextRequest) {
               },
             },
             {
-              text: `Bạn là chuyên gia đọc và phân tích CV tuyển dụng.
+              text: `Bạn là chuyên gia tuyển dụng nhân sự và dịch thuật CV quốc tế.
 
-Hãy đọc file CV PDF và trích xuất chính xác thông tin ứng viên.
-Không tự suy đoán hoặc bịa thông tin.
-Không tìm thấy thông tin thì trả về null.
-languages và skills phải là mảng chuỗi.
+NHIỆM VỤ:
+Đọc toàn bộ file CV PDF, trích xuất chính xác thông tin ứng viên và chuyển nội dung sang TIẾNG VIỆT.
 
-Chỉ trả về JSON hợp lệ, không Markdown, không giải thích.
+QUY TẮC NGÔN NGỮ:
+1. Tất cả nội dung mô tả phải được viết bằng tiếng Việt.
+2. Nếu CV viết bằng tiếng Trung, dịch tiếng Trung sang tiếng Việt.
+3. Nếu CV viết bằng tiếng Anh, dịch tiếng Anh sang tiếng Việt.
+4. Nếu CV viết bằng ngôn ngữ khác, cũng dịch sang tiếng Việt.
+5. Chức danh công việc phải được dịch sang tiếng Việt.
+6. Mô tả kinh nghiệm làm việc phải được dịch đầy đủ, dễ hiểu.
+7. Kỹ năng chuyên môn và thuật ngữ kỹ thuật phải được dịch chính xác.
+8. Học vấn, chuyên ngành, bằng cấp và địa điểm phải được chuyển sang tiếng Việt nếu xác định được.
+9. Tên người phải giữ nguyên theo CV gốc, không tự ý dịch hoặc đổi tên.
+10. Tên công ty, thương hiệu và mã sản phẩm giữ nguyên tên gốc.
+11. Các thuật ngữ chuyên ngành như PE, PQE, PMC, SMT, AOI, MES, PLC, FAI, QCP, 8D, LabVIEW được giữ nguyên khi cần thiết; có thể giải thích bằng tiếng Việt.
+12. Không để nguyên đoạn văn tiếng Trung hoặc tiếng Anh trong các trường mô tả nếu có thể dịch chính xác.
 
-Cấu trúc:
+QUY TẮC TRÍCH XUẤT:
+1. Không tự suy đoán hoặc bịa thông tin.
+2. Không tìm thấy thông tin thì trả về null.
+3. languages và skills phải là mảng chuỗi.
+4. languages phải ghi tên ngôn ngữ bằng tiếng Việt, ví dụ: Tiếng Trung, Tiếng Anh, Tiếng Nhật.
+5. skills phải chứa các kỹ năng đã được dịch sang tiếng Việt khi có thể.
+6. experience phải tóm tắt quá trình làm việc bằng tiếng Việt, giữ đúng mốc thời gian.
+7. latest_position phải là chức danh tiếng Việt, có thể kèm thuật ngữ viết tắt chuyên ngành.
+8. latest_company phải giữ nguyên tên công ty theo CV.
+9. birth_year chỉ lấy năm sinh nếu CV thể hiện rõ.
+10. phone và email phải giữ nguyên chính xác.
+
+QUY TẮC ĐỘ CHÍNH XÁC:
+- Không tự suy luận trình độ ngoại ngữ nếu CV không nêu.
+- Không tự thêm kinh nghiệm, kỹ năng hoặc bằng cấp.
+- Nếu không chắc chắn về bản dịch chuyên ngành, giữ nguyên thuật ngữ gốc.
+- Không nhầm địa chỉ với quê quán hoặc địa điểm làm việc.
+- Không tự đổi tên riêng của ứng viên Trung Quốc hoặc quốc gia khác sang tên Việt Nam.
+
+CHỈ TRẢ VỀ JSON HỢP LỆ.
+Không Markdown, không giải thích bên ngoài JSON.
+
+CẤU TRÚC:
 {
   "full_name": null,
   "birth_year": null,
@@ -81,7 +113,13 @@ Cấu trúc:
   "experience": null,
   "latest_position": null,
   "latest_company": null
-}`,
+}
+
+TRƯỚC KHI TRẢ KẾT QUẢ:
+Kiểm tra lại toàn bộ các trường.
+Đảm bảo nội dung mô tả đã được chuyển sang tiếng Việt.
+Đảm bảo không làm sai lệch thông tin gốc.
+Đảm bảo JSON hợp lệ.`,
             },
           ],
         },
