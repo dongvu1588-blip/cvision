@@ -100,6 +100,8 @@ export default function CandidatesPage() {
   const [languageFilter, setLanguageFilter] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [readingCv, setReadingCv] = useState(false);
+  const [aiReadError, setAiReadError] = useState("");
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState("");
   const [form, setForm] = useState<CandidateJson>({});
@@ -285,8 +287,60 @@ export default function CandidatesPage() {
     }
   }
 
+  async function handleReadCvWithAI() {
+    if (!cvFile) {
+      setAiReadError("Vui lòng chọn file CV PDF trước.");
+      return;
+    }
+
+    setReadingCv(true);
+    setAiReadError("");
+
+    try {
+      const body = new FormData();
+      body.append("file", cvFile);
+
+      const response = await fetch("/api/ai/read-cv", {
+        method: "POST",
+        body,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success || !result.candidate) {
+        throw new Error(result.error || "AI chưa đọc được CV. Vui lòng thử lại.");
+      }
+
+      const parsed = result.candidate as CandidateJson;
+
+      setForm({
+        full_name: parsed.full_name || parsed.name || "",
+        birth_year: parsed.birth_year ?? "",
+        phone: parsed.phone || "",
+        email: parsed.email || "",
+        address: parsed.address || "",
+        province: parsed.province || "",
+        education: parsed.education || "",
+        languages: toText(parsed.languages),
+        skills: toText(parsed.skills),
+        experience: parsed.experience || "",
+        latest_position: parsed.latest_position || parsed.position || "",
+        latest_company: parsed.latest_company || parsed.company || "",
+      });
+      setJsonText("");
+      setJsonError("");
+    } catch (error) {
+      setAiReadError(
+        error instanceof Error ? error.message : "Có lỗi khi AI đọc CV."
+      );
+    } finally {
+      setReadingCv(false);
+    }
+  }
+
   function handleCvChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] || null;
+    setAiReadError("");
     if (file && file.type !== "application/pdf") {
       alert("Vui lòng chọn file CV định dạng PDF.");
       event.target.value = "";
@@ -318,6 +372,7 @@ export default function CandidatesPage() {
   function resetAddForm() {
     setJsonText("");
     setJsonError("");
+    setAiReadError("");
     setForm({});
     setCvFile(null);
     setPhotoFile(null);
@@ -852,7 +907,7 @@ export default function CandidatesPage() {
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-7">
               <div>
                 <h2 className="text-xl font-extrabold text-slate-800">Thêm CV ứng viên</h2>
-                <p className="mt-1 text-xs text-slate-500">Dán JSON từ ChatGPT để tự động điền thông tin.</p>
+                <p className="mt-1 text-xs text-slate-500">Tải CV PDF lên để AI tự trích xuất, hoặc vẫn có thể dán JSON thủ công.</p>
               </div>
               <button onClick={resetAddForm} className="rounded-lg px-3 py-2 text-xl text-slate-400 hover:bg-slate-100">×</button>
             </div>
@@ -934,6 +989,16 @@ export default function CandidatesPage() {
                   <label className="mb-2 block text-sm font-bold text-slate-700">File CV PDF (tối đa 10 MB)</label>
                   <input type="file" accept="application/pdf,.pdf" onChange={handleCvChange} className="block w-full rounded-xl border border-slate-200 p-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-2 file:font-bold file:text-sky-700" />
                   {cvFile && <p className="mt-1 text-xs text-emerald-700">{cvFile.name}</p>}
+                  <button
+                    type="button"
+                    onClick={handleReadCvWithAI}
+                    disabled={!cvFile || readingCv}
+                    className="mt-3 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {readingCv ? "AI đang đọc CV..." : "✨ AI đọc CV và điền thông tin"}
+                  </button>
+                  {aiReadError && <p className="mt-2 text-xs text-red-600">{aiReadError}</p>}
+                  <p className="mt-2 text-xs text-slate-400">AI chỉ trích xuất thông tin có trong CV. Hãy kiểm tra lại trước khi lưu ứng viên.</p>
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-bold text-slate-700">Ảnh đại diện (PNG/JPG/WebP, tối đa 3 MB)</label>
