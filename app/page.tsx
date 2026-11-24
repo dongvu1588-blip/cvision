@@ -28,6 +28,12 @@ const GMAIL_BODY = encodeURIComponent(
 
 const GMAIL_LINK = `https://mail.google.com/mail/?view=cm&fs=1&to=${CONTACT_EMAIL}&su=${GMAIL_SUBJECT}&body=${GMAIL_BODY}`;
 
+function createGmailComposeLink(subject: string, body: string) {
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+    CONTACT_EMAIL
+  )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 const plans = [
   {
     name: "BASIC",
@@ -348,7 +354,12 @@ export default function Home() {
                   Xem chi tiết
                 </button>
                 <a
-                  href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`Ứng tuyển ${job.title} - CVISION`)}&body=${encodeURIComponent(`Xin chào CVISION,\n\nTôi quan tâm đến vị trí ${job.title}${job.company_name ? ` tại ${job.company_name}` : ""}.\n\nHọ và tên:\nSố điện thoại:\n\nTôi sẽ đính kèm CV trong email này.\n\nTrân trọng.`)}`}
+                  href={createGmailComposeLink(
+                    `Ứng tuyển ${job.title} - CVISION`,
+                    `Xin chào CVISION,\n\nTôi quan tâm đến vị trí ${job.title}${job.company_name ? ` tại ${job.company_name}` : ""}.\n\nHọ và tên:\nSố điện thoại:\n\nTôi sẽ đính kèm CV trong email này.\n\nTrân trọng.`
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 py-3 text-center text-sm font-bold text-white transition hover:from-sky-500 hover:to-blue-700"
                 >
                   Ứng tuyển
@@ -411,7 +422,12 @@ export default function Home() {
               </div>
 
               <a
-                href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`Ứng tuyển ${selectedJob.title} - CVISION`)}&body=${encodeURIComponent(`Xin chào CVISION,\n\nTôi muốn ứng tuyển vị trí ${selectedJob.title}.\n\nHọ và tên:\nSố điện thoại:\n\nTôi sẽ đính kèm CV trong email này.\n\nTrân trọng.`)}`}
+                href={createGmailComposeLink(
+                  `Ứng tuyển ${selectedJob.title} - CVISION`,
+                  `Xin chào CVISION,\n\nTôi muốn ứng tuyển vị trí ${selectedJob.title}.\n\nHọ và tên:\nSố điện thoại:\n\nTôi sẽ đính kèm CV trong email này.\n\nTrân trọng.`
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="mt-8 block rounded-xl bg-gradient-to-r from-sky-400 to-blue-600 px-6 py-3 text-center font-bold text-white transition hover:from-sky-500 hover:to-blue-700"
               >
                 Gửi CV ứng tuyển qua email
