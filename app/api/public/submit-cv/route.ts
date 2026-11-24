@@ -2,8 +2,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = "nodejs";
-
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 function text(value: unknown, maxLength = 5000): string | null {
@@ -97,7 +95,10 @@ export async function POST(request: NextRequest) {
 
     if (!fullName) {
       return NextResponse.json(
-        { success: false, error: "AI chưa đọc được họ tên. Vui lòng kiểm tra lại CV." },
+        {
+          success: false,
+          error: "AI chưa đọc được họ tên. Vui lòng kiểm tra lại CV.",
+        },
         { status: 400 }
       );
     }
