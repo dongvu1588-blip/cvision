@@ -2,6 +2,7 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import SiteLogo from "@/components/SiteLogo";
 
@@ -564,12 +565,12 @@ export default function CandidatesPage() {
     <div className="min-h-screen bg-[#f7f9fc] text-slate-800">
       {/* Sidebar desktop: cố định độc lập với vùng nội dung */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden h-screen w-64 flex-col overflow-y-auto border-r border-slate-200 bg-white p-5 md:flex">
-        <a href="/" className="mb-10 flex flex-col items-start gap-2" aria-label="CVISION - Trang chủ">
+        <Link href="/" className="mb-10 flex flex-col items-start gap-2" aria-label="CVISION - Trang chủ">
           <SiteLogo size="large" />
           <p className="pl-1 text-[9px] font-bold tracking-[0.2em] text-sky-500">
             ADMIN WORKSPACE
           </p>
-        </a>
+        </Link>
 
         <p className="mb-4 px-3 text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-400">
           Workspace
@@ -577,7 +578,7 @@ export default function CandidatesPage() {
 
         <nav className="space-y-2">
           {menu.map((item, index) => (
-            <a
+            <Link
               key={item.name}
               href={item.href}
               className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
@@ -596,27 +597,27 @@ export default function CandidatesPage() {
                 {item.icon}
               </span>
               {item.name}
-            </a>
+            </Link>
           ))}
 
           {isAdmin && (
-            <a
+            <Link
               href="/admin/users"
               className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-sky-50 hover:text-sky-700"
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-lg text-slate-500">♙</span>
               Quản lý nhân viên
-            </a>
+            </Link>
           )}
 
           {isAdmin && (
-            <a
+            <Link
               href="/admin/brand-settings"
               className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-sky-50 hover:text-sky-700"
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-lg text-slate-500">⚙</span>
               Cài đặt thương hiệu
-            </a>
+            </Link>
           )}
         </nav>
 
@@ -647,22 +648,22 @@ export default function CandidatesPage() {
           />
           <aside className="relative z-10 flex h-full w-[min(84vw,320px)] flex-col overflow-y-auto border-r border-slate-200 bg-white p-5 shadow-2xl">
             <div className="mb-8 flex items-start justify-between gap-3">
-              <a href="/" className="flex flex-col items-start gap-2" aria-label="CVISION - Trang chủ">
+              <Link href="/" className="flex flex-col items-start gap-2" aria-label="CVISION - Trang chủ">
                 <SiteLogo size="large" />
                 <p className="pl-1 text-[9px] font-bold tracking-[0.2em] text-sky-500">ADMIN WORKSPACE</p>
-              </a>
+              </Link>
               <button type="button" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-3 py-2 text-2xl text-slate-500 hover:bg-slate-100" aria-label="Đóng menu">×</button>
             </div>
             <p className="mb-4 px-3 text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-400">Workspace</p>
             <nav className="space-y-2">
               {menu.map((item) => (
-                <a key={item.name} href={item.href} onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${item.href === "/admin/candidates" ? "bg-sky-50 text-sky-700" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}>
+                <Link key={item.name} href={item.href} onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${item.href === "/admin/candidates" ? "bg-sky-50 text-sky-700" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}>
                   <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-lg ${item.href === "/admin/candidates" ? "bg-white text-sky-600" : "bg-slate-50 text-slate-500"}`}>{item.icon}</span>
                   {item.name}
-                </a>
+                </Link>
               ))}
-              {isAdmin && <a href="/admin/users" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-sky-50 hover:text-sky-700"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-lg text-slate-500">♙</span>Quản lý nhân viên</a>}
-              {isAdmin && <a href="/admin/brand-settings" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-sky-50 hover:text-sky-700"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-lg text-slate-500">⚙</span>Cài đặt thương hiệu</a>}
+              {isAdmin && <Link href="/admin/users" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-sky-50 hover:text-sky-700"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-lg text-slate-500">♙</span>Quản lý nhân viên</Link>}
+              {isAdmin && <Link href="/admin/brand-settings" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-sky-50 hover:text-sky-700"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-lg text-slate-500">⚙</span>Cài đặt thương hiệu</Link>}
             </nav>
             <div className="mt-auto pt-8">
               <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-blue-100 p-4">
