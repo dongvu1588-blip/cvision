@@ -144,38 +144,127 @@ export default function JobsPage() {
   function importJobJson() {
     setJsonError("");
     setJsonNotice("");
+
     try {
       let raw = jsonText.trim();
-      if (!raw) throw new Error("Bạn chưa dán JSON từ ChatGPT.");
-      raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-      const parsed = JSON.parse(raw);
+
+      if (!raw) {
+        throw new Error("Bạn chưa dán nội dung JSON từ ChatGPT.");
+      }
+
+      // Bỏ dấu Markdown code fence nếu ChatGPT trả về ```json ... ```
+      raw = raw
+        .replace(/^\uFEFF/, "")
+        .replace(/^```(?:json|javascript|js)?\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+
+      // Nếu ChatGPT kèm lời dẫn, chỉ lấy phần JSON nằm trong cặp ngoặc ngoài cùng.
+      const firstObject = raw.indexOf("{");
+      const firstArray = raw.indexOf("[");
+      const starts = [firstObject, firstArray].filter((n) => n >= 0);
+      if (starts.length > 0) {
+        const startIndex = Math.min(...starts);
+        const endIndex = Math.max(raw.lastIndexOf("}"), raw.lastIndexOf("]"));
+        if (endIndex > startIndex) {
+          raw = raw.slice(startIndex, endIndex + 1).trim();
+        }
+      }
+
+      // Một số câu trả lời được copy dưới dạng JSON đã escape: {\"title\":\"...\"}
+      if (/^\s*[{\[]\s*\\"/.test(raw)) {
+        raw = raw.replace(/\\\"/g, '"');
+      }
+
+      // Đọc JSON chuẩn trước; nếu chưa chuẩn thì thử sửa một số lỗi định dạng phổ biến.
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        const normalized = raw
+          .replace(/[“”]/g, '"')
+          .replace(/[‘’]/g, "'")
+          // Tự thêm dấu nháy cho key bị thiếu: { title: "..."} -> {"title": "..."}
+          .replace(/([{,]\s*)([A-Za-z_$][\w$-]*)(\s*:)/g, '$1"$2"$3')
+          // Bỏ dấu phẩy thừa trước dấu đóng object/array.
+          .replace(/,\s*([}\]])/g, "$1");
+
+        try {
+          parsed = JSON.parse(normalized);
+        } catch {
+          throw new Error(
+            "Nội dung chưa phải JSON hợp lệ. Hãy yêu cầu ChatGPT: Chỉ trả về JSON hợp lệ, dùng dấu nháy kép cho tất cả key và giá trị, không thêm dấu ```."
+          );
+        }
+      }
+
+      // Trường hợp ChatGPT trả về một chuỗi chứa JSON đã mã hóa.
+      if (typeof parsed === "string") {
+        try {
+          parsed = JSON.parse(parsed);
+        } catch {
+          throw new Error("JSON đang ở dạng văn bản được mã hóa. Hãy copy lại phần JSON bên trong.");
+        }
+      }
+
       const data = Array.isArray(parsed) ? parsed[0] : parsed;
+
       if (!data || typeof data !== "object" || Array.isArray(data)) {
         throw new Error("JSON phải là một đối tượng thông tin của một tin tuyển dụng.");
       }
 
+      const record = data as Record<string, unknown>;
+
       const readText = (...keys: string[]) => {
         for (const key of keys) {
-          const value = data[key];
-          if (typeof value === "string" || typeof value === "number") return String(value).trim();
+          const value = record[key];
+          if (typeof value === "string" || typeof value === "number") {
+            return String(value).trim();
+          }
         }
         return "";
       };
 
-      const companyName = readText("company", "company_name", "companyName", "employer");
+      const companyName = readText(
+        "company",
+        "company_name",
+        "companyName",
+        "employer"
+      );
       const normalizedCompany = companyName.toLocaleLowerCase("vi").trim();
       const matchedCompany = companies.find(
-        (company) => company.name.toLocaleLowerCase("vi").trim() === normalizedCompany
+        (company) =>
+          company.name.toLocaleLowerCase("vi").trim() === normalizedCompany
       );
+
+      const title = readText("title", "position", "job_title", "jobTitle");
+      const location = readText("location", "job_location", "work_location");
+      const salary = readText("salary", "salary_range", "income");
+      const description = readText(
+        "description",
+        "job_description",
+        "responsibilities"
+      );
+      const requirements = readText(
+        "requirements",
+        "job_requirements",
+        "qualifications"
+      );
+
+      if (!title && !description && !requirements) {
+        throw new Error(
+          "Không tìm thấy thông tin JD. Cần có ít nhất tên vị trí, mô tả hoặc yêu cầu ứng viên."
+        );
+      }
 
       setForm((current) => ({
         ...current,
-        title: readText("title", "position", "job_title", "jobTitle") || current.title,
+        title: title || current.title,
         company_id: matchedCompany?.id || "",
-        location: readText("location", "job_location", "work_location") || current.location,
-        salary: readText("salary", "salary_range", "income") || current.salary,
-        description: readText("description", "job_description", "responsibilities") || current.description,
-        requirements: readText("requirements", "job_requirements", "qualifications") || current.requirements,
+        location: location || current.location,
+        salary: salary || current.salary,
+        description: description || current.description,
+        requirements: requirements || current.requirements,
       }));
 
       setJsonNotice(
@@ -184,7 +273,11 @@ export default function JobsPage() {
           : "Đã tự động điền biểu mẫu. Vui lòng kiểm tra thông tin trước khi lưu."
       );
     } catch (error) {
-      setJsonError(error instanceof Error ? error.message : "JSON không hợp lệ. Vui lòng kiểm tra lại.");
+      setJsonError(
+        error instanceof Error
+          ? error.message
+          : "Không đọc được nội dung. Vui lòng kiểm tra lại."
+      );
     }
   }
 
