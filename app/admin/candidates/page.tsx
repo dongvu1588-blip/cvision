@@ -2,7 +2,6 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import SiteLogo from "@/components/SiteLogo";
 
@@ -88,7 +87,6 @@ function toText(value: unknown): string {
 
 export default function CandidatesPage() {
   const router = useRouter();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -565,12 +563,12 @@ export default function CandidatesPage() {
     <div className="min-h-screen bg-[#f7f9fc] text-slate-800">
       {/* Sidebar desktop: cố định độc lập với vùng nội dung */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden h-screen w-64 flex-col overflow-y-auto border-r border-slate-200 bg-white p-5 md:flex">
-        <Link href="/" className="mb-10 flex flex-col items-start gap-2" aria-label="CVISION - Trang chủ">
+        <a href="/" className="mb-10 flex flex-col items-start gap-2" aria-label="CVISION - Trang chủ">
           <SiteLogo size="large" />
           <p className="pl-1 text-[9px] font-bold tracking-[0.2em] text-sky-500">
             ADMIN WORKSPACE
           </p>
-        </Link>
+        </a>
 
         <p className="mb-4 px-3 text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-400">
           Workspace
@@ -578,7 +576,7 @@ export default function CandidatesPage() {
 
         <nav className="space-y-2">
           {menu.map((item, index) => (
-            <Link
+            <a
               key={item.name}
               href={item.href}
               className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
@@ -597,27 +595,27 @@ export default function CandidatesPage() {
                 {item.icon}
               </span>
               {item.name}
-            </Link>
+            </a>
           ))}
 
           {isAdmin && (
-            <Link
+            <a
               href="/admin/users"
               className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-sky-50 hover:text-sky-700"
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-lg text-slate-500">♙</span>
               Quản lý nhân viên
-            </Link>
+            </a>
           )}
 
           {isAdmin && (
-            <Link
+            <a
               href="/admin/brand-settings"
               className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-sky-50 hover:text-sky-700"
             >
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-lg text-slate-500">⚙</span>
               Cài đặt thương hiệu
-            </Link>
+            </a>
           )}
         </nav>
 
@@ -637,59 +635,15 @@ export default function CandidatesPage() {
         </div>
       </aside>
 
-      {/* Menu drawer mobile */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <button
-            type="button"
-            aria-label="Đóng menu"
-            onClick={() => setMobileMenuOpen(false)}
-            className="absolute inset-0 bg-slate-950/40"
-          />
-          <aside className="relative z-10 flex h-full w-[min(84vw,320px)] flex-col overflow-y-auto border-r border-slate-200 bg-white p-5 shadow-2xl">
-            <div className="mb-8 flex items-start justify-between gap-3">
-              <Link href="/" className="flex flex-col items-start gap-2" aria-label="CVISION - Trang chủ">
-                <SiteLogo size="large" />
-                <p className="pl-1 text-[9px] font-bold tracking-[0.2em] text-sky-500">ADMIN WORKSPACE</p>
-              </Link>
-              <button type="button" onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-3 py-2 text-2xl text-slate-500 hover:bg-slate-100" aria-label="Đóng menu">×</button>
-            </div>
-            <p className="mb-4 px-3 text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-400">Workspace</p>
-            <nav className="space-y-2">
-              {menu.map((item) => (
-                <Link key={item.name} href={item.href} onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${item.href === "/admin/candidates" ? "bg-sky-50 text-sky-700" : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"}`}>
-                  <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-lg ${item.href === "/admin/candidates" ? "bg-white text-sky-600" : "bg-slate-50 text-slate-500"}`}>{item.icon}</span>
-                  {item.name}
-                </Link>
-              ))}
-              {isAdmin && <Link href="/admin/users" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-sky-50 hover:text-sky-700"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-lg text-slate-500">♙</span>Quản lý nhân viên</Link>}
-              {isAdmin && <Link href="/admin/brand-settings" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 hover:bg-sky-50 hover:text-sky-700"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 text-lg text-slate-500">⚙</span>Cài đặt thương hiệu</Link>}
-            </nav>
-            <div className="mt-auto pt-8">
-              <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-blue-100 p-4">
-                <p className="font-extrabold text-sky-800">CVISION Workspace</p>
-                <p className="mt-2 text-xs leading-5 text-sky-700">Nền tảng quản lý ứng viên và kết nối doanh nghiệp.</p>
-              </div>
-              <div className="mt-4 rounded-2xl border border-slate-100 p-3">
-                <p className="truncate text-sm font-bold">{currentName || "Đang tải tài khoản..."}</p>
-                <p className="text-xs text-slate-500">{isAdmin ? "admin" : "recruiter"}</p>
-                <button onClick={handleLogout} className="mt-3 text-xs font-semibold text-slate-500 hover:text-sky-700">↪ Đăng xuất</button>
-              </div>
-            </div>
-          </aside>
-        </div>
-      )}
-
       <main className="min-w-0 flex-1 md:ml-64">
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 py-4 backdrop-blur md:px-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <button type="button" onClick={() => setMobileMenuOpen(true)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-slate-700 shadow-sm hover:bg-slate-50 md:hidden" aria-label="Mở menu">☰</button>
+            <div className="flex min-w-0 items-center">
               <div>
-              <p className="text-xs font-semibold text-slate-400">Workspace / Ứng viên</p>
-              <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-800">
-                Quản lý ứng viên
-              </h1>
+                <p className="text-xs font-semibold text-slate-400">Workspace / Ứng viên</p>
+                <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-800">
+                  Quản lý ứng viên
+                </h1>
               </div>
             </div>
             <button
