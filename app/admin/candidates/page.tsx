@@ -100,6 +100,7 @@ export default function CandidatesPage() {
   const [languageFilter, setLanguageFilter] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [readingCv, setReadingCv] = useState(false);
   const [aiReadError, setAiReadError] = useState("");
   const [jsonText, setJsonText] = useState("");
@@ -394,6 +395,50 @@ export default function CandidatesPage() {
     return safeName;
   }
 
+  function normalizeDuplicateText(value: unknown): string {
+    return String(value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/gi, "d")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  }
+
+  function normalizeDuplicatePhone(value: unknown): string {
+    let phone = String(value ?? "").replace(/\D/g, "");
+    if (phone.startsWith("0084")) phone = "0" + phone.slice(4);
+    else if (phone.startsWith("84") && phone.length >= 11) phone = "0" + phone.slice(2);
+    return phone;
+  }
+
+  function findPossibleDuplicateCandidates(candidate: CandidateJson): Candidate[] {
+    const phone = normalizeDuplicatePhone(candidate.phone);
+    const email = String(candidate.email ?? "").trim().toLowerCase();
+    const name = normalizeDuplicateText(candidate.full_name || candidate.name);
+    const year = String(candidate.birth_year ?? "").trim();
+    const company = normalizeDuplicateText(candidate.latest_company || candidate.company);
+    const position = normalizeDuplicateText(candidate.latest_position || candidate.position);
+
+    return candidates.filter((existing) => {
+      const existingPhone = normalizeDuplicatePhone(existing.phone);
+      const existingEmail = String(existing.email ?? "").trim().toLowerCase();
+      const existingName = normalizeDuplicateText(existing.full_name);
+      const existingYear = String(existing.birth_year ?? "").trim();
+      const existingCompany = normalizeDuplicateText(existing.latest_company);
+      const existingPosition = normalizeDuplicateText(existing.latest_position);
+
+      if (phone && existingPhone && phone === existingPhone) return true;
+      if (email && existingEmail && email === existingEmail) return true;
+
+      const sameName = name.length >= 5 && existingName === name;
+      const sameYear = year && existingYear && year === existingYear;
+      const sameCompany = company.length >= 3 && existingCompany === company;
+      const samePosition = position.length >= 3 && existingPosition === position;
+
+      return sameName || (sameYear && sameCompany) || (sameName && samePosition);
+    });
+  }
+
   async function addCandidate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -409,8 +454,109 @@ export default function CandidatesPage() {
     }
 
     setSaving(true);
+    setCheckingDuplicate(true);
 
     try {
+      const candidateForCheck: CandidateJson = {
+        ...form,
+        full_name: name,
+        latest_position: form.latest_position || form.position || null,
+        latest_company: form.latest_company || form.company || null,
+      };
+
+      // Kiểm tra trùng chính xác bằng số điện thoại/email trước, không gửi dữ liệu liên hệ cho AI.
+      const normalizedPhone = normalizeDuplicatePhone(candidateForCheck.phone);
+      const normalizedEmail = String(candidateForCheck.email ?? "").trim().toLowerCase();
+      const exactMatches = candidates.filter((existing) => {
+        const samePhone =
+          normalizedPhone &&
+          normalizeDuplicatePhone(existing.phone) === normalizedPhone;
+        const sameEmail =
+          normalizedEmail &&
+          String(existing.email ?? "").trim().toLowerCase() === normalizedEmail;
+        return Boolean(samePhone || sameEmail);
+      });
+
+      if (exactMatches.length > 0) {
+        const matchDetails = exactMatches
+          .slice(0, 5)
+          .map((item) => {
+            const contact = item.phone || item.email || "Không có thông tin liên hệ";
+            return `• ${item.full_name} — ${contact}`;
+          })
+          .join("\n");
+        const continueSaving = window.confirm(
+          `⚠️ Phát hiện hồ sơ có số điện thoại hoặc email trùng:\n\n${matchDetails}\n\nBạn có chắc vẫn muốn lưu hồ sơ mới không?`
+        );
+        if (!continueSaving) return;
+      } else {
+        const possibleMatches = findPossibleDuplicateCandidates(candidateForCheck);
+
+        if (possibleMatches.length > 0) {
+          try {
+            const response = await fetch("/api/ai/check-duplicate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                candidate: {
+                  full_name: name,
+                  birth_year: candidateForCheck.birth_year ?? null,
+                  province: candidateForCheck.province ?? null,
+                  education: candidateForCheck.education ?? null,
+                  languages: toText(candidateForCheck.languages),
+                  skills: toText(candidateForCheck.skills),
+                  experience: toText(candidateForCheck.experience),
+                  latest_position: toText(candidateForCheck.latest_position || candidateForCheck.position),
+                  latest_company: toText(candidateForCheck.latest_company || candidateForCheck.company),
+                },
+                existingCandidates: possibleMatches.slice(0, 20).map((item) => ({
+                  id: item.id,
+                  full_name: item.full_name,
+                  birth_year: item.birth_year,
+                  province: item.province,
+                  education: item.education,
+                  languages: item.languages,
+                  skills: item.skills,
+                  experience: item.experience,
+                  latest_position: item.latest_position,
+                  latest_company: item.latest_company,
+                })),
+              }),
+            });
+
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+              throw new Error(result.error || "Không thể kiểm tra trùng bằng AI.");
+            }
+
+            const duplicates = Array.isArray(result.duplicates) ? result.duplicates : [];
+            if (duplicates.length > 0) {
+              const duplicateDetails = duplicates
+                .slice(0, 5)
+                .map((item: { candidate_name?: string; match_score?: number; reasons?: string[] }) => {
+                  const reasons = Array.isArray(item.reasons) ? item.reasons.join("; ") : "";
+                  return `• ${item.candidate_name || "Ứng viên đã có"} — ${Number(item.match_score) || 0}%${reasons ? `\n  Lý do: ${reasons}` : ""}`;
+                })
+                .join("\n");
+              const continueSaving = window.confirm(
+                `⚠️ AI phát hiện hồ sơ có khả năng trùng:\n\n${duplicateDetails}\n\nĐây chỉ là cảnh báo để bạn kiểm tra. Bạn có muốn tiếp tục lưu hồ sơ mới không?`
+              );
+              if (!continueSaving) return;
+            }
+          } catch (duplicateError) {
+            const message = duplicateError instanceof Error
+              ? duplicateError.message
+              : "Không rõ nguyên nhân";
+            const continueWithoutAi = window.confirm(
+              `Không thể hoàn tất kiểm tra trùng bằng AI (${message}).\\n\\nBạn có muốn tiếp tục lưu hồ sơ không?`
+            );
+            if (!continueWithoutAi) return;
+          }
+        }
+      }
+
+      setCheckingDuplicate(false);
+
       let cvPath: string | null = null;
       let photoPath: string | null = null;
 
@@ -459,6 +605,7 @@ export default function CandidatesPage() {
       );
     } finally {
       setSaving(false);
+      setCheckingDuplicate(false);
     }
   }
 
@@ -909,7 +1056,7 @@ export default function CandidatesPage() {
                 <h2 className="text-xl font-extrabold text-slate-800">Thêm CV ứng viên</h2>
                 <p className="mt-1 text-xs text-slate-500">Tải CV PDF lên để AI tự trích xuất, hoặc vẫn có thể dán JSON thủ công.</p>
               </div>
-              <button onClick={resetAddForm} className="rounded-lg px-3 py-2 text-xl text-slate-400 hover:bg-slate-100">×</button>
+              <button type="button" disabled={saving} onClick={resetAddForm} className="rounded-lg px-3 py-2 text-xl text-slate-400 hover:bg-slate-100 disabled:opacity-40">×</button>
             </div>
 
             <form onSubmit={addCandidate} className="space-y-5 p-5 sm:p-7">
@@ -1019,11 +1166,11 @@ export default function CandidatesPage() {
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
                 <p className="text-xs text-slate-400">Hồ sơ sẽ được lưu vào tab: {activeTab === "valid" ? "CV" : "CV không hợp lệ"}.</p>
                 <div className="flex gap-2">
-                  <button type="button" onClick={resetAddForm} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                  <button type="button" disabled={saving} onClick={resetAddForm} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
                     Hủy
                   </button>
                   <button type="submit" disabled={saving || Boolean(jsonError)} className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50">
-                    {saving ? "Đang lưu..." : "Lưu ứng viên"}
+                    {checkingDuplicate ? "Đang kiểm tra trùng..." : saving ? "Đang lưu..." : "Lưu ứng viên"}
                   </button>
                 </div>
               </div>
