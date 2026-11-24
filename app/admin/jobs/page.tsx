@@ -141,83 +141,157 @@ export default function JobsPage() {
     }
   }
 
+  function decodeHtmlEntities(value: string): string {
+    return value
+      .replace(/&quot;/gi, '"')
+      .replace(/&apos;|&#39;|&#x27;/gi, "'")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) =>
+        String.fromCodePoint(parseInt(hex, 16))
+      )
+      .replace(/&#([0-9]+);/g, (_, number: string) =>
+        String.fromCodePoint(Number(number))
+      );
+  }
+
+  function extractJsonBlock(value: string): string {
+    const start = value.search(/[\[{]/);
+    if (start < 0) {
+      throw new Error("Không tìm thấy JSON. Hãy dán phần kết quả JSON từ ChatGPT.");
+    }
+
+    const opening = value[start];
+    const closing = opening === "{" ? "}" : "]";
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = start; i < value.length; i++) {
+      const char = value[i];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (char === "\\") {
+          escaped = true;
+        } else if (char === '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (char === '"') {
+        inString = true;
+      } else if (char === opening) {
+        depth++;
+      } else if (char === closing) {
+        depth--;
+        if (depth === 0) return value.slice(start, i + 1);
+      }
+    }
+
+    throw new Error("JSON chưa đầy đủ dấu ngoặc. Hãy copy lại toàn bộ kết quả ChatGPT.");
+  }
+
+  function parseJobJson(input: string): Record<string, unknown> {
+    let raw = decodeHtmlEntities(input)
+      .replace(/^\uFEFF/, "")
+      .trim()
+      .replace(/^```(?:json|javascript|js)?\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+
+    if (!raw) throw new Error("Bạn chưa dán nội dung JD.");
+
+    const attempts: string[] = [raw];
+
+    // Xử lý trường hợp toàn bộ JSON được bọc trong một chuỗi JSON.
+    try {
+      const decoded = JSON.parse(raw);
+      if (typeof decoded === "string") attempts.unshift(decoded);
+      else if (decoded && typeof decoded === "object") {
+        const item = Array.isArray(decoded) ? decoded[0] : decoded;
+        if (item && typeof item === "object" && !Array.isArray(item)) {
+          return item as Record<string, unknown>;
+        }
+      }
+    } catch {
+      // Tiếp tục thử các dạng văn bản khác.
+    }
+
+    // Nếu có lời dẫn trước/sau JSON, chỉ lấy khối JSON cân bằng.
+    try {
+      attempts.push(extractJsonBlock(raw));
+    } catch {
+      // Giữ lỗi để báo ở cuối nếu không có cách nào đọc được.
+    }
+
+    for (const candidate of [...attempts]) {
+      // JSON bị escape kiểu {\"title\":\"...\"}
+      attempts.push(candidate.replace(/\\"/g, '"'));
+      // Chuẩn hóa dấu nháy cong và dấu phẩy thừa.
+      attempts.push(
+        candidate
+          .replace(/[“”]/g, '"')
+          .replace(/[‘’]/g, "'")
+          .replace(/,\s*([}\]])/g, "$1")
+      );
+    }
+
+    const uniqueAttempts = [...new Set(attempts)];
+
+    for (const candidate of uniqueAttempts) {
+      try {
+        let parsed: unknown = JSON.parse(candidate.trim());
+
+        if (typeof parsed === "string") {
+          parsed = JSON.parse(parsed);
+        }
+
+        const data = Array.isArray(parsed) ? parsed[0] : parsed;
+        if (data && typeof data === "object" && !Array.isArray(data)) {
+          return data as Record<string, unknown>;
+        }
+      } catch {
+        // Thử ứng viên tiếp theo.
+      }
+    }
+
+    // Thử sửa key không có dấu nháy: {title: "..."}.
+    for (const candidate of uniqueAttempts) {
+      const normalized = candidate
+        .replace(/([{,]\s*)([A-Za-z_$][\w$-]*)(\s*:)/g, '$1"$2"$3')
+        .replace(/,\s*([}\]])/g, "$1");
+
+      try {
+        const parsed: unknown = JSON.parse(normalized);
+        const data = Array.isArray(parsed) ? parsed[0] : parsed;
+        if (data && typeof data === "object" && !Array.isArray(data)) {
+          return data as Record<string, unknown>;
+        }
+      } catch {
+        // Báo lỗi rõ ràng ở dưới.
+      }
+    }
+
+    throw new Error(
+      "Không đọc được JSON. Hãy copy toàn bộ câu trả lời ChatGPT, không chỉnh sửa nội dung trong lúc copy."
+    );
+  }
+
   function importJobJson() {
     setJsonError("");
     setJsonNotice("");
 
     try {
-      let raw = jsonText.trim();
-
-      if (!raw) {
-        throw new Error("Bạn chưa dán nội dung JSON từ ChatGPT.");
-      }
-
-      // Bỏ dấu Markdown code fence nếu ChatGPT trả về ```json ... ```
-      raw = raw
-        .replace(/^\uFEFF/, "")
-        .replace(/^```(?:json|javascript|js)?\s*/i, "")
-        .replace(/\s*```$/i, "")
-        .trim();
-
-      // Nếu ChatGPT kèm lời dẫn, chỉ lấy phần JSON nằm trong cặp ngoặc ngoài cùng.
-      const firstObject = raw.indexOf("{");
-      const firstArray = raw.indexOf("[");
-      const starts = [firstObject, firstArray].filter((n) => n >= 0);
-      if (starts.length > 0) {
-        const startIndex = Math.min(...starts);
-        const endIndex = Math.max(raw.lastIndexOf("}"), raw.lastIndexOf("]"));
-        if (endIndex > startIndex) {
-          raw = raw.slice(startIndex, endIndex + 1).trim();
-        }
-      }
-
-      // Một số câu trả lời được copy dưới dạng JSON đã escape: {\"title\":\"...\"}
-      if (/^\s*[{\[]\s*\\"/.test(raw)) {
-        raw = raw.replace(/\\\"/g, '"');
-      }
-
-      // Đọc JSON chuẩn trước; nếu chưa chuẩn thì thử sửa một số lỗi định dạng phổ biến.
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        const normalized = raw
-          .replace(/[“”]/g, '"')
-          .replace(/[‘’]/g, "'")
-          // Tự thêm dấu nháy cho key bị thiếu: { title: "..."} -> {"title": "..."}
-          .replace(/([{,]\s*)([A-Za-z_$][\w$-]*)(\s*:)/g, '$1"$2"$3')
-          // Bỏ dấu phẩy thừa trước dấu đóng object/array.
-          .replace(/,\s*([}\]])/g, "$1");
-
-        try {
-          parsed = JSON.parse(normalized);
-        } catch {
-          throw new Error(
-            "Nội dung chưa phải JSON hợp lệ. Hãy yêu cầu ChatGPT: Chỉ trả về JSON hợp lệ, dùng dấu nháy kép cho tất cả key và giá trị, không thêm dấu ```."
-          );
-        }
-      }
-
-      // Trường hợp ChatGPT trả về một chuỗi chứa JSON đã mã hóa.
-      if (typeof parsed === "string") {
-        try {
-          parsed = JSON.parse(parsed);
-        } catch {
-          throw new Error("JSON đang ở dạng văn bản được mã hóa. Hãy copy lại phần JSON bên trong.");
-        }
-      }
-
-      const data = Array.isArray(parsed) ? parsed[0] : parsed;
-
-      if (!data || typeof data !== "object" || Array.isArray(data)) {
-        throw new Error("JSON phải là một đối tượng thông tin của một tin tuyển dụng.");
-      }
-
-      const record = data as Record<string, unknown>;
+      const data = parseJobJson(jsonText);
 
       const readText = (...keys: string[]) => {
         for (const key of keys) {
-          const value = record[key];
+          const value = data[key];
           if (typeof value === "string" || typeof value === "number") {
             return String(value).trim();
           }
@@ -253,7 +327,7 @@ export default function JobsPage() {
 
       if (!title && !description && !requirements) {
         throw new Error(
-          "Không tìm thấy thông tin JD. Cần có ít nhất tên vị trí, mô tả hoặc yêu cầu ứng viên."
+          "JSON đã đọc được nhưng không có tên vị trí, mô tả hoặc yêu cầu tuyển dụng."
         );
       }
 
@@ -269,8 +343,8 @@ export default function JobsPage() {
 
       setJsonNotice(
         companyName && !matchedCompany
-          ? `Đã điền JD. Chưa tìm thấy doanh nghiệp "${companyName}" trong hệ thống; vui lòng chọn doanh nghiệp trong danh sách.`
-          : "Đã tự động điền biểu mẫu. Vui lòng kiểm tra thông tin trước khi lưu."
+          ? `Đã đọc JD. Chưa tìm thấy doanh nghiệp "${companyName}" trong hệ thống; vui lòng chọn doanh nghiệp trong danh sách.`
+          : "Đã đọc JD thành công và tự động điền biểu mẫu. Vui lòng kiểm tra trước khi lưu."
       );
     } catch (error) {
       setJsonError(
