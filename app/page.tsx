@@ -30,24 +30,35 @@ const GMAIL_LINK = `https://mail.google.com/mail/?view=cm&fs=1&to=${CONTACT_EMAI
 
 const plans = [
   {
-    name: "CV Basic",
-    description: "Thiết kế và trình bày CV cơ bản",
-    price: "29.000 đồng",
+    name: "BASIC",
+    price: "19.000 VNĐ",
+    features: [
+      "Thiết kế CV theo mẫu có sẵn.",
+      "Chỉnh sửa thông tin cá nhân.",
+      "Sắp xếp bố cục và định dạng.",
+      "Bàn giao file PDF.",
+    ],
   },
   {
-    name: "CV Professional",
-    description: "Thiết kế chuyên nghiệp, tối ưu nội dung, 1 lần chỉnh sửa",
-    price: "59.000 đồng",
+    name: "PROFESSIONAL",
+    price: "39.000 VNĐ",
+    features: [
+      "Thiết kế CV theo ngành nghề.",
+      "Chỉnh sửa và tối ưu nội dung.",
+      "Sắp xếp kinh nghiệm và kỹ năng.",
+      "Tối ưu bố cục chuyên nghiệp.",
+      "Bàn giao PDF và file chỉnh sửa.",
+    ],
   },
   {
-    name: "CV Multilingual",
-    description: "CV đa ngôn ngữ, tối ưu theo vị trí ứng tuyển, 2 lần chỉnh sửa",
-    price: "99.000 đồng",
-  },
-  {
-    name: "Career Package",
-    description: "CV chuyên nghiệp, Cover Letter, tối ưu LinkedIn và tư vấn nghề nghiệp",
-    price: "149.000 đồng",
+    name: "PREMIUM",
+    price: "69.000 VNĐ",
+    features: [
+      "Thiết kế CV chuyên nghiệp theo vị trí ứng tuyển.",
+      "Tối ưu nội dung và từ khóa CV.",
+      "Tư vấn định hướng hồ sơ ứng tuyển.",
+      "Hỗ trợ tối ưu LinkedIn cơ bản.",
+    ],
   },
 ];
 
@@ -468,10 +479,15 @@ export default function Home() {
                     className="flex flex-col rounded-2xl border border-sky-100 bg-white/90 p-5 shadow-sm backdrop-blur transition hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg"
                   >
                     <h4 className="text-lg font-bold text-blue-950">{plan.name}</h4>
-                    <p className="mt-2 min-h-12 text-sm leading-6 text-slate-600">
-                      {plan.description}
-                    </p>
-                    <p className="mt-4 text-2xl font-extrabold text-blue-600">
+                    <ul className="mt-3 flex-1 space-y-2 text-sm leading-6 text-slate-600">
+                      {plan.features.map((feature) => (
+                        <li key={feature} className="flex items-start gap-2">
+                          <span className="mt-0.5 font-bold text-sky-600">✓</span>
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-5 text-2xl font-extrabold text-blue-600">
                       {plan.price}
                     </p>
                     <Link
