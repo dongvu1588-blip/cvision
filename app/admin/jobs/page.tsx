@@ -232,11 +232,14 @@ export default function JobsPage() {
     for (const candidate of [...attempts]) {
       // JSON bị escape kiểu {\"title\":\"...\"}
       attempts.push(candidate.replace(/\\"/g, '"'));
-      // Chuẩn hóa dấu nháy cong và dấu phẩy thừa.
+      // Một số nội dung copy có dấu gạch chéo ngược thừa ngay trước dấu đóng } hoặc ].
+      attempts.push(candidate.replace(/\\(?=\s*[}\]])/g, ""));
+      // Chuẩn hóa dấu nháy cong, dấu phẩy thừa và ký tự HTML.
       attempts.push(
         candidate
           .replace(/[“”]/g, '"')
           .replace(/[‘’]/g, "'")
+          .replace(/\\(?=\s*[}\]])/g, "")
           .replace(/,\s*([}\]])/g, "$1")
       );
     }
