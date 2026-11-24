@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import AIJobMatcher from "@/components/AIJobMatcher";
 
@@ -235,7 +235,7 @@ export default function JobsPage() {
     await loadData();
   }
 
-  async function saveJob(e: React.FormEvent<HTMLFormElement>) {
+  async function saveJob(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (!form.title.trim()) {
