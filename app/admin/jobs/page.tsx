@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import AIJobMatcher from "@/components/AIJobMatcher";
 
 type Company = {
   id: string;
@@ -364,6 +365,9 @@ export default function JobsPage() {
             Tạo, chỉnh sửa và theo dõi các vị trí tuyển dụng của doanh nghiệp.
           </p>
         </div>
+
+        {/* AI đề xuất việc làm cho ứng viên */}
+        <AIJobMatcher />
 
         {/* Thống kê */}
         <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
