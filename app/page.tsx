@@ -187,10 +187,16 @@ export default function Home() {
             <SiteLogo size="large" />
           </Link>
 
-          <nav className="hidden items-center gap-8 text-sm font-semibold md:flex">
+          <nav className="hidden items-center gap-6 text-sm font-semibold md:flex">
             <Link href="/" className="text-blue-600">Trang chủ</Link>
             <Link href="#jobs" className="transition hover:text-sky-500">Việc làm</Link>
             <Link href="#services" className="transition hover:text-sky-500">Dịch vụ CV</Link>
+            <Link
+              href="/ai-career"
+              className="rounded-xl bg-violet-100 px-3 py-2 font-bold text-violet-700 transition hover:bg-violet-200"
+            >
+              ✨ AI phân tích CV
+            </Link>
             <Link href="#about" className="transition hover:text-sky-500">Giới thiệu</Link>
             <Link href="#contact" className="transition hover:text-sky-500">Liên hệ</Link>
           </nav>

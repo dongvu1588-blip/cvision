@@ -47,6 +47,9 @@ export default function AIJobMatcher() {
   const [loading, setLoading] = useState(false);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [error, setError] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     async function loadJobs() {
@@ -77,6 +80,7 @@ export default function AIJobMatcher() {
     setCandidate(null);
     setMatches([]);
     setSummary("");
+    setSubmitted(false);
 
     if (!selectedFile) {
       setFile(null);
@@ -105,6 +109,11 @@ export default function AIJobMatcher() {
   async function analyzeCV() {
     if (!file) {
       setError("Vui lòng chọn file CV PDF trước.");
+      return;
+    }
+
+    if (!consent) {
+      setError("Vui lòng xác nhận đồng ý gửi CV cho CVISION để được phân tích và tư vấn việc làm.");
       return;
     }
 
@@ -179,6 +188,27 @@ export default function AIJobMatcher() {
         : [];
 
       setMatches(recommendations);
+
+      // BƯỚC 3: Gửi CV và thông tin ứng viên về hệ thống quản trị CVISION.
+      setSubmitting(true);
+      const submitForm = new FormData();
+      submitForm.append("file", file);
+      submitForm.append("candidate", JSON.stringify(extractedCandidate));
+
+      const submitResponse = await fetch("/api/public/submit-cv", {
+        method: "POST",
+        body: submitForm,
+      });
+
+      const submitResult = await submitResponse.json();
+
+      if (!submitResponse.ok || !submitResult.success) {
+        throw new Error(
+          submitResult.error || "AI đã phân tích nhưng chưa gửi được CV về CVISION."
+        );
+      }
+
+      setSubmitted(true);
     } catch (err) {
       setError(
         err instanceof Error
@@ -187,6 +217,7 @@ export default function AIJobMatcher() {
       );
     } finally {
       setLoading(false);
+      setSubmitting(false);
     }
   }
 
@@ -276,15 +307,33 @@ export default function AIJobMatcher() {
         </div>
       </div>
 
+      {/* XÁC NHẬN GỬI CV */}
+      <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          checked={consent}
+          disabled={loading}
+          onChange={(e) => setConsent(e.target.checked)}
+          className="mt-1 h-4 w-4 accent-violet-600"
+        />
+        <span>
+          Tôi đồng ý để CVISION đọc, phân tích và lưu CV cùng thông tin liên hệ
+          của tôi nhằm tư vấn, giới thiệu việc làm và cho phép bộ phận tuyển dụng
+          CVISION liên hệ khi phù hợp.
+        </span>
+      </label>
+
       {/* NÚT PHÂN TÍCH */}
       <button
         type="button"
         onClick={analyzeCV}
-        disabled={loading || loadingJobs || !file || jobs.length === 0}
+        disabled={loading || loadingJobs || !file || !consent || jobs.length === 0}
         className="mt-4 w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-3.5 text-sm font-bold text-white shadow-sm transition hover:from-violet-700 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading
-          ? "⏳ AI đang đọc CV và tìm việc phù hợp..."
+          ? submitting
+            ? "⏳ Đang gửi CV về CVISION..."
+            : "⏳ AI đang đọc CV và tìm việc phù hợp..."
           : "✨ Phân tích CV và tìm việc bằng AI"}
       </button>
 
@@ -304,6 +353,16 @@ export default function AIJobMatcher() {
       {error && (
         <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">
           {error}
+        </div>
+      )}
+
+      {/* THÔNG BÁO ĐÃ GỬI CV */}
+      {submitted && (
+        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          <p className="font-bold">✓ CV của bạn đã được gửi về CVISION thành công.</p>
+          <p className="mt-1">
+            Bộ phận tuyển dụng sẽ kiểm tra hồ sơ và liên hệ nếu có vị trí phù hợp.
+          </p>
         </div>
       )}
 
@@ -531,6 +590,7 @@ export default function AIJobMatcher() {
         Kết quả do AI phân tích dựa trên nội dung CV và các tin tuyển dụng
         đang mở trong CVISION. Đây là gợi ý tham khảo; nhân viên tuyển dụng
         cần kiểm tra hồ sơ và yêu cầu công việc trước khi liên hệ ứng viên.
+        CV và thông tin do bạn cung cấp sẽ được chuyển về bộ phận tuyển dụng CVISION.
       </p>
     </section>
   );
