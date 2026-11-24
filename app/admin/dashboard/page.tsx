@@ -303,7 +303,7 @@ export default function Dashboard() {
       {/* MOBILE MENU */}
       <div className="fixed inset-x-0 top-0 z-40 border-b border-sky-100 bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:hidden">
         <div className="flex items-center justify-between">
-          <Link href="/admin/dashboard" className="flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
+          <Link href="/" className="flex items-center gap-2" onClick={() => setMobileMenuOpen(false)} aria-label="CVISION - Trang chủ công khai">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 font-black text-white shadow-sm">
               C
             </span>

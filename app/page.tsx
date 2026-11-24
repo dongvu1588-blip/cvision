@@ -74,6 +74,7 @@ const plans = [
 ];
 
 export default function Home() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [jobs, setJobs] = useState<PublicJob[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [jobsError, setJobsError] = useState("");
@@ -181,9 +182,9 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white text-slate-700">
       {/* HEADER */}
-      <header className="sticky top-0 z-50 border-b border-sky-100 bg-white/90 shadow-sm backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/" aria-label="CVISION - Trang chủ">
+      <header className="sticky top-0 z-50 border-b border-sky-100 bg-white/95 shadow-sm backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
+          <Link href="/" aria-label="CVISION - Trang chủ" onClick={() => setMobileMenuOpen(false)}>
             <SiteLogo size="large" />
           </Link>
 
@@ -201,13 +202,77 @@ export default function Home() {
             <Link href="#contact" className="transition hover:text-sky-500">Liên hệ</Link>
           </nav>
 
-          <Link
-            href="/admin/login"
-            className="rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-600 shadow-sm transition hover:border-blue-400 hover:bg-sky-50"
-          >
-            Đăng nhập nội bộ
-          </Link>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href="/admin/login"
+              className="rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-xs font-bold text-blue-600 shadow-sm transition hover:border-blue-400 hover:bg-sky-50 sm:px-4 sm:text-sm"
+            >
+              Đăng nhập nội bộ
+            </Link>
+            <button
+              type="button"
+              aria-label={mobileMenuOpen ? "Đóng menu" : "Mở menu"}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-public-navigation"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 text-xl font-bold text-sky-700 md:hidden"
+            >
+              {mobileMenuOpen ? "×" : "☰"}
+            </button>
+          </div>
         </div>
+
+        {mobileMenuOpen && (
+          <nav
+            id="mobile-public-navigation"
+            className="border-t border-sky-100 bg-white px-4 py-3 shadow-lg md:hidden"
+          >
+            <div className="mx-auto flex max-w-7xl flex-col gap-1">
+              <Link
+                href="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl px-4 py-3 text-sm font-semibold text-blue-600 hover:bg-sky-50"
+              >
+                Trang chủ
+              </Link>
+              <Link
+                href="#jobs"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-sky-50"
+              >
+                Việc làm
+              </Link>
+              <Link
+                href="#services"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-sky-50"
+              >
+                Dịch vụ CV
+              </Link>
+              <Link
+                href="/ai-career"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl bg-violet-50 px-4 py-3 text-sm font-bold text-violet-700 hover:bg-violet-100"
+              >
+                ✨ AI phân tích CV
+              </Link>
+              <Link
+                href="#about"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-sky-50"
+              >
+                Giới thiệu
+              </Link>
+              <Link
+                href="#contact"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-sky-50"
+              >
+                Liên hệ
+              </Link>
+            </div>
+          </nav>
+        )}
       </header>
 
       {/* HERO */}
