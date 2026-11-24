@@ -6,6 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import SiteLogo from "@/components/SiteLogo";
 
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 type PublicJob = {
   id: string;
   title: string;
@@ -75,6 +80,53 @@ export default function Home() {
   const [jobKeyword, setJobKeyword] = useState("");
   const [jobLocation, setJobLocation] = useState("");
   const [selectedJob, setSelectedJob] = useState<PublicJob | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      role: "assistant",
+      content:
+        "Xin chào! Mình là trợ lý AI của CVISION. Bạn cần hỗ trợ tìm việc, tư vấn CV hay tìm hiểu dịch vụ của chúng mình?",
+    },
+  ]);
+
+  async function sendChatMessage() {
+    const message = chatInput.trim();
+    if (!message || chatLoading) return;
+
+    setChatInput("");
+    setChatError("");
+    setChatMessages((current) => [...current, { role: "user", content: message }]);
+    setChatLoading(true);
+
+    try {
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success || typeof data.reply !== "string") {
+        throw new Error(data.error || "Trợ lý AI chưa thể trả lời. Vui lòng thử lại.");
+      }
+
+      setChatMessages((current) => [
+        ...current,
+        { role: "assistant", content: data.reply },
+      ]);
+    } catch (error) {
+      const messageText =
+        error instanceof Error
+          ? error.message
+          : "Không thể kết nối trợ lý AI. Vui lòng thử lại sau.";
+      setChatError(messageText);
+    } finally {
+      setChatLoading(false);
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -668,6 +720,110 @@ export default function Home() {
         </p>
         <p className="mt-4">© 2026 CVISION. All rights reserved.</p>
       </footer>
+
+      {/* FLOATING CVISION AI CHATBOT */}
+      <div className="fixed bottom-5 right-5 z-[100] flex flex-col items-end gap-3">
+        {chatOpen && (
+          <section
+            className="flex h-[min(560px,calc(100vh-110px))] w-[min(380px,calc(100vw-32px))] flex-col overflow-hidden rounded-3xl border border-sky-100 bg-white shadow-2xl shadow-blue-950/20"
+            aria-label="Trò chuyện với CVISION AI"
+          >
+            <div className="flex items-center gap-3 bg-gradient-to-r from-sky-500 to-blue-700 px-4 py-4 text-white">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-xl text-blue-600">
+                ✦
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-extrabold">CVISION AI</p>
+                <p className="text-xs text-blue-100">Trợ lý tuyển dụng trực tuyến</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChatOpen(false)}
+                aria-label="Đóng chatbot"
+                className="rounded-full px-3 py-2 text-xl leading-none transition hover:bg-white/15"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-4">
+              {chatMessages.map((item, index) => (
+                <div
+                  key={`${item.role}-${index}`}
+                  className={`flex ${item.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-6 ${
+                      item.role === "user"
+                        ? "rounded-br-md bg-blue-600 text-white"
+                        : "rounded-bl-md border border-sky-100 bg-white text-slate-700 shadow-sm"
+                    }`}
+                  >
+                    {item.content}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="rounded-2xl rounded-bl-md border border-sky-100 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">
+                    CVISION AI đang trả lời...
+                  </div>
+                </div>
+              )}
+              {chatError && (
+                <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                  {chatError}
+                </p>
+              )}
+            </div>
+
+            <form
+              className="flex items-end gap-2 border-t border-slate-100 bg-white p-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void sendChatMessage();
+              }}
+            >
+              <textarea
+                value={chatInput}
+                onChange={(event) => setChatInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void sendChatMessage();
+                  }
+                }}
+                rows={1}
+                maxLength={4000}
+                placeholder="Nhập câu hỏi của bạn..."
+                aria-label="Tin nhắn gửi CVISION AI"
+                className="max-h-28 min-h-11 flex-1 resize-y rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:ring-2 focus:ring-sky-400"
+              />
+              <button
+                type="submit"
+                disabled={!chatInput.trim() || chatLoading}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-sky-500 to-blue-700 text-lg font-bold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Gửi tin nhắn"
+              >
+                ➤
+              </button>
+            </form>
+            <p className="bg-white px-3 pb-2 text-center text-[10px] text-slate-400">
+              Câu trả lời AI có thể cần được kiểm tra lại.
+            </p>
+          </section>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setChatOpen((open) => !open)}
+          aria-label={chatOpen ? "Đóng trò chuyện" : "Mở trò chuyện với CVISION AI"}
+          className="flex h-14 items-center gap-2 rounded-full bg-gradient-to-r from-sky-500 to-blue-700 px-5 font-bold text-white shadow-xl shadow-blue-300/60 transition hover:-translate-y-1 hover:shadow-2xl"
+        >
+          <span className="text-xl">✦</span>
+          <span>{chatOpen ? "Đóng chat" : "Chat với CVISION"}</span>
+        </button>
+      </div>
     </main>
   );
 }
