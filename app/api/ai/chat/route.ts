@@ -2,15 +2,13 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = "nodejs";
-
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Chưa cấu hình GEMINI_API_KEY trong .env.local" },
+        { error: "Chưa cấu hình GEMINI_API_KEY trong môi trường." },
         { status: 500 }
       );
     }
@@ -33,21 +31,12 @@ export async function POST(request: NextRequest) {
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text:
-                "Bạn là trợ lý AI của CVISION, nền tảng tuyển dụng và dịch vụ CV tại Việt Nam. " +
-                "Hãy trả lời bằng tiếng Việt, thân thiện, dễ hiểu, ngắn gọn và hữu ích. " +
-                "Không tự bịa thông tin tuyển dụng hoặc thông tin doanh nghiệp.\n\n" +
-                "Câu hỏi của người dùng: " +
-                message.trim(),
-            },
-          ],
-        },
-      ],
+      contents:
+        "Bạn là trợ lý AI của CVISION, nền tảng tuyển dụng và dịch vụ CV tại Việt Nam. " +
+        "Hãy trả lời bằng tiếng Việt, thân thiện, dễ hiểu và hữu ích. " +
+        "Không tự bịa thông tin tuyển dụng hoặc doanh nghiệp.\n\n" +
+        "Câu hỏi của người dùng: " +
+        message.trim(),
     });
 
     return NextResponse.json({
