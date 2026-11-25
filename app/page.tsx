@@ -81,6 +81,7 @@ export default function Home() {
   const [jobKeyword, setJobKeyword] = useState("");
   const [jobLocation, setJobLocation] = useState("");
   const [selectedJob, setSelectedJob] = useState<PublicJob | null>(null);
+  const [jobsExpanded, setJobsExpanded] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -178,6 +179,8 @@ export default function Home() {
       return matchesKeyword && matchesLocation;
     });
   }, [jobs, jobKeyword, jobLocation]);
+
+  const displayedJobs = jobsExpanded ? filteredJobs : filteredJobs.slice(0, 6);
 
   return (
     <main className="min-h-screen bg-white text-slate-700">
@@ -446,7 +449,7 @@ export default function Home() {
         )}
 
         <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {filteredJobs.map((job) => (
+          {displayedJobs.map((job) => (
             <article
               key={job.id}
               className="group flex flex-col rounded-3xl border border-sky-100 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-blue-300 hover:shadow-xl hover:shadow-sky-100"
@@ -491,6 +494,21 @@ export default function Home() {
             </article>
           ))}
         </div>
+
+        {filteredJobs.length > 6 && (
+          <div className="mt-8 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setJobsExpanded((expanded) => !expanded)}
+              aria-expanded={jobsExpanded}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-sky-200 bg-white px-6 py-3 font-bold text-blue-600 shadow-sm transition hover:border-blue-400 hover:bg-sky-50 sm:w-auto"
+            >
+              {jobsExpanded
+                ? "Thu gọn danh sách việc làm ↑"
+                : `Xem tất cả ${filteredJobs.length} việc làm ↓`}
+            </button>
+          </div>
+        )}
 
         {selectedJob && (
           <div
