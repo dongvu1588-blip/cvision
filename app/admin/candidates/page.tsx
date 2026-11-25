@@ -787,7 +787,15 @@ export default function CandidatesPage() {
     alert("Đã xóa hồ sơ ứng viên.");
   }
 
+  function canEditCandidate(candidate: Candidate) {
+    return isAdmin || (!!currentUserId && candidate.uploaded_by === currentUserId);
+  }
+
   function openEditCandidate(candidate: Candidate) {
+    if (!canEditCandidate(candidate)) {
+      alert("Bạn chỉ có thể sửa ứng viên do chính mình tải lên. Admin có thể sửa tất cả ứng viên.");
+      return;
+    }
     setEditingCandidate(candidate);
     setEditForm({
       full_name: candidate.full_name || "",
@@ -808,6 +816,11 @@ export default function CandidatesPage() {
   async function saveCandidateEdit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editingCandidate) return;
+    if (!canEditCandidate(editingCandidate)) {
+      alert("Bạn không có quyền sửa ứng viên này. Chỉ người upload và Admin được sửa.");
+      setEditingCandidate(null);
+      return;
+    }
 
     const name = toText(editForm.full_name || editForm.name).trim();
     if (!name) {
@@ -1103,12 +1116,14 @@ export default function CandidatesPage() {
                             <button onClick={() => openCv(candidate, true)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
                               Tải
                             </button>
-                            <button
-                              onClick={() => openEditCandidate(candidate)}
-                              className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100"
-                            >
-                              ✏️ Sửa
-                            </button>
+                            {canEditCandidate(candidate) && (
+                              <button
+                                onClick={() => openEditCandidate(candidate)}
+                                className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100"
+                              >
+                                ✏️ Sửa
+                              </button>
+                            )}
                             {isAdmin && (candidate.status || "valid") !== "invalid" && (
                               <button
                                 disabled={approvingCandidateId === candidate.id || approvedCandidateIds.includes(candidate.id)}
