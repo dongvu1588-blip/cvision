@@ -32,9 +32,9 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "CVISION" }],
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/favicon.ico",
+    icon: "/logo-cvision.png",
+    shortcut: "/logo-cvision.png",
+    apple: "/logo-cvision.png",
   },
 };
 
