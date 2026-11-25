@@ -110,6 +110,9 @@ export default function CandidatesPage() {
   const [educationFilter, setEducationFilter] = useState("");
   const [languageFilter, setLanguageFilter] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingCandidate, setEditingCandidate] = useState<Candidate | null>(null);
+  const [editForm, setEditForm] = useState<CandidateJson>({});
+  const [savingEdit, setSavingEdit] = useState(false);
   const [saving, setSaving] = useState(false);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [readingCv, setReadingCv] = useState(false);
@@ -784,6 +787,77 @@ export default function CandidatesPage() {
     alert("Đã xóa hồ sơ ứng viên.");
   }
 
+  function openEditCandidate(candidate: Candidate) {
+    setEditingCandidate(candidate);
+    setEditForm({
+      full_name: candidate.full_name || "",
+      birth_year: candidate.birth_year ?? "",
+      phone: candidate.phone || "",
+      email: candidate.email || "",
+      address: candidate.address || "",
+      province: candidate.province || "",
+      education: candidate.education || "",
+      languages: candidate.languages || "",
+      skills: candidate.skills || "",
+      experience: candidate.experience || "",
+      latest_position: candidate.latest_position || "",
+      latest_company: candidate.latest_company || "",
+    });
+  }
+
+  async function saveCandidateEdit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingCandidate) return;
+
+    const name = toText(editForm.full_name || editForm.name).trim();
+    if (!name) {
+      alert("Vui lòng nhập họ và tên ứng viên.");
+      return;
+    }
+
+    const birthYearText = String(editForm.birth_year ?? "").trim();
+    const birthYearNumber = Number(birthYearText);
+    const birthYear = birthYearText && Number.isInteger(birthYearNumber)
+      ? birthYearNumber
+      : null;
+
+    setSavingEdit(true);
+    try {
+      const updates = {
+        full_name: name,
+        birth_year: birthYear,
+        phone: toText(editForm.phone).trim() || null,
+        email: toText(editForm.email).trim() || null,
+        address: toText(editForm.address).trim() || null,
+        province: toText(editForm.province).trim() || null,
+        education: toText(editForm.education).trim() || null,
+        languages: toText(editForm.languages).trim() || null,
+        skills: toText(editForm.skills).trim() || null,
+        experience: toText(editForm.experience).trim() || null,
+        latest_position: toText(editForm.latest_position || editForm.position).trim() || null,
+        latest_company: toText(editForm.latest_company || editForm.company).trim() || null,
+      };
+
+      const { error } = await supabase
+        .from("candidates")
+        .update(updates)
+        .eq("id", editingCandidate.id);
+
+      if (error) throw error;
+
+      setCandidates((current) => current.map((item) =>
+        item.id === editingCandidate.id ? { ...item, ...updates } : item
+      ));
+      setEditingCandidate(null);
+      setEditForm({});
+      alert("Đã cập nhật thông tin ứng viên thành công.");
+    } catch (error) {
+      alert("Không cập nhật được ứng viên: " + (error instanceof Error ? error.message : "Lỗi không xác định"));
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   async function handleLogout() {
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -1029,6 +1103,12 @@ export default function CandidatesPage() {
                             <button onClick={() => openCv(candidate, true)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50">
                               Tải
                             </button>
+                            <button
+                              onClick={() => openEditCandidate(candidate)}
+                              className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100"
+                            >
+                              ✏️ Sửa
+                            </button>
                             {isAdmin && (candidate.status || "valid") !== "invalid" && (
                               <button
                                 disabled={approvingCandidateId === candidate.id || approvedCandidateIds.includes(candidate.id)}
@@ -1079,6 +1159,76 @@ export default function CandidatesPage() {
           </section>
         </div>
       </main>
+
+      {editingCandidate && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-950/50 p-3 py-8 sm:p-6">
+          <div className="my-auto w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-7">
+              <div>
+                <h2 className="text-xl font-extrabold text-slate-800">Sửa thông tin ứng viên</h2>
+                <p className="mt-1 text-xs text-slate-500">Cập nhật thông tin cho hồ sơ: {editingCandidate.full_name}</p>
+              </div>
+              <button type="button" disabled={savingEdit} onClick={() => setEditingCandidate(null)} className="rounded-lg px-3 py-2 text-xl text-slate-400 hover:bg-slate-100 disabled:opacity-40">×</button>
+            </div>
+            <form onSubmit={saveCandidateEdit} className="space-y-4 p-5 sm:p-7">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-600">Họ và tên *</label>
+                  <input required value={toText(editForm.full_name)} onChange={(e) => setEditForm((v) => ({ ...v, full_name: e.target.value }))} className={inputClass} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-600">Năm sinh</label>
+                  <input type="number" value={toText(editForm.birth_year)} onChange={(e) => setEditForm((v) => ({ ...v, birth_year: e.target.value }))} className={inputClass} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-600">Số điện thoại</label>
+                  <input value={toText(editForm.phone)} onChange={(e) => setEditForm((v) => ({ ...v, phone: e.target.value }))} className={inputClass} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-600">Email</label>
+                  <input type="email" value={toText(editForm.email)} onChange={(e) => setEditForm((v) => ({ ...v, email: e.target.value }))} className={inputClass} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-600">Tỉnh/thành</label>
+                  <input value={toText(editForm.province)} onChange={(e) => setEditForm((v) => ({ ...v, province: e.target.value }))} className={inputClass} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-600">Học vấn</label>
+                  <input value={toText(editForm.education)} onChange={(e) => setEditForm((v) => ({ ...v, education: e.target.value }))} className={inputClass} />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-600">Địa chỉ</label>
+                <input value={toText(editForm.address)} onChange={(e) => setEditForm((v) => ({ ...v, address: e.target.value }))} className={inputClass} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-600">Ngoại ngữ</label>
+                <input placeholder="Ví dụ: Tiếng Trung khá, Tiếng Anh cơ bản" value={toText(editForm.languages)} onChange={(e) => setEditForm((v) => ({ ...v, languages: e.target.value }))} className={inputClass} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-600">Vị trí gần nhất</label>
+                <input value={toText(editForm.latest_position)} onChange={(e) => setEditForm((v) => ({ ...v, latest_position: e.target.value }))} className={inputClass} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-600">Công ty gần nhất</label>
+                <input value={toText(editForm.latest_company)} onChange={(e) => setEditForm((v) => ({ ...v, latest_company: e.target.value }))} className={inputClass} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-600">Kỹ năng</label>
+                <textarea rows={3} value={toText(editForm.skills)} onChange={(e) => setEditForm((v) => ({ ...v, skills: e.target.value }))} className={inputClass} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-600">Kinh nghiệm</label>
+                <textarea rows={4} value={toText(editForm.experience)} onChange={(e) => setEditForm((v) => ({ ...v, experience: e.target.value }))} className={inputClass} />
+              </div>
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                <button type="button" disabled={savingEdit} onClick={() => setEditingCandidate(null)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Hủy</button>
+                <button type="submit" disabled={savingEdit} className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50">{savingEdit ? "Đang lưu..." : "Lưu thay đổi"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/50 p-3 py-8 sm:p-6">
