@@ -58,27 +58,6 @@ const menu = [
 const inputClass =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100";
 
-const JSON_COPY_PROMPT = `Hãy đọc CV PDF tôi gửi kèm và trích xuất thông tin ứng viên.
-Chỉ lấy thông tin có trong CV, không tự suy đoán hoặc bịa thông tin.
-Nếu không tìm thấy thông tin, hãy để null; riêng languages và skills có thể để mảng rỗng [].
-Trả về duy nhất một JSON hợp lệ, không giải thích, không dùng dấu Markdown.
-
-Cấu trúc JSON:
-{
-  "full_name": null,
-  "birth_year": null,
-  "phone": null,
-  "email": null,
-  "address": null,
-  "province": null,
-  "education": null,
-  "languages": [],
-  "skills": [],
-  "experience": null,
-  "latest_position": null,
-  "latest_company": null
-}`;
-
 function toText(value: unknown): string {
   if (Array.isArray(value)) return value.map(String).join(", ");
   if (value === null || value === undefined) return "";
@@ -103,8 +82,7 @@ export default function CandidatesPage() {
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const [readingCv, setReadingCv] = useState(false);
   const [aiReadError, setAiReadError] = useState("");
-  const [jsonText, setJsonText] = useState("");
-  const [jsonError, setJsonError] = useState("");
+  const [aiReadCompleted, setAiReadCompleted] = useState(false);
   const [form, setForm] = useState<CandidateJson>({});
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -115,15 +93,6 @@ export default function CandidatesPage() {
   const [approvedCandidateIds, setApprovedCandidateIds] = useState<string[]>([]);
 
   const isAdmin = currentRole === "admin";
-
-  async function copyJsonPrompt() {
-    try {
-      await navigator.clipboard.writeText(JSON_COPY_PROMPT);
-      alert("Đã copy hướng dẫn. Hãy mở ChatGPT, tải CV PDF lên và dán hướng dẫn này vào.");
-    } catch {
-      alert("Trình duyệt không cho phép copy tự động. Hãy kiểm tra quyền Clipboard hoặc mở website bằng HTTPS.");
-    }
-  }
 
   async function loadCurrentUser() {
     const {
@@ -250,44 +219,6 @@ export default function CandidatesPage() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function handleJsonChange(value: string) {
-    setJsonText(value);
-    setJsonError("");
-    if (!value.trim()) return;
-
-    try {
-      const cleanedValue = value
-        .trim()
-        .replace(/^```(?:json)?\s*/i, "")
-        .replace(/\s*```$/, "");
-      const parsed = JSON.parse(cleanedValue) as CandidateJson;
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("JSON phải là một đối tượng thông tin ứng viên.");
-      }
-
-      setForm({
-        full_name: parsed.full_name || parsed.name || "",
-        birth_year: parsed.birth_year ?? "",
-        phone: parsed.phone || "",
-        email: parsed.email || "",
-        address: parsed.address || "",
-        province: parsed.province || "",
-        education: parsed.education || "",
-        languages: toText(parsed.languages),
-        skills: toText(parsed.skills),
-        experience: parsed.experience || "",
-        latest_position: parsed.latest_position || parsed.position || "",
-        latest_company: parsed.latest_company || parsed.company || "",
-      });
-    } catch (error) {
-      setJsonError(
-        error instanceof Error
-          ? "JSON chưa hợp lệ: " + error.message
-          : "Không đọc được JSON."
-      );
-    }
-  }
-
   async function handleReadCvWithAI() {
     if (!cvFile) {
       setAiReadError("Vui lòng chọn file CV PDF trước.");
@@ -328,8 +259,7 @@ export default function CandidatesPage() {
         latest_position: parsed.latest_position || parsed.position || "",
         latest_company: parsed.latest_company || parsed.company || "",
       });
-      setJsonText("");
-      setJsonError("");
+      setAiReadCompleted(true);
     } catch (error) {
       setAiReadError(
         error instanceof Error ? error.message : "Có lỗi khi AI đọc CV."
@@ -342,6 +272,8 @@ export default function CandidatesPage() {
   function handleCvChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] || null;
     setAiReadError("");
+    setAiReadCompleted(false);
+    setForm({});
     if (file && file.type !== "application/pdf") {
       alert("Vui lòng chọn file CV định dạng PDF.");
       event.target.value = "";
@@ -371,9 +303,8 @@ export default function CandidatesPage() {
   }
 
   function resetAddForm() {
-    setJsonText("");
-    setJsonError("");
     setAiReadError("");
+    setAiReadCompleted(false);
     setForm({});
     setCvFile(null);
     setPhotoFile(null);
@@ -442,14 +373,19 @@ export default function CandidatesPage() {
   async function addCandidate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const name = toText(form.full_name || form.name).trim();
-    if (!name) {
-      alert("Vui lòng dán JSON hoặc nhập họ và tên ứng viên.");
+    if (!cvFile) {
+      alert("Vui lòng tải lên CV PDF.");
       return;
     }
 
-    if (jsonText.trim() && jsonError) {
-      alert("Hãy sửa lỗi JSON trước khi lưu.");
+    if (!aiReadCompleted) {
+      alert("Vui lòng bấm “AI đọc CV và điền thông tin” trước khi lưu.");
+      return;
+    }
+
+    const name = toText(form.full_name || form.name).trim();
+    if (!name) {
+      alert("Vui lòng dán JSON hoặc nhập họ và tên ứng viên.");
       return;
     }
 
@@ -934,7 +870,7 @@ export default function CandidatesPage() {
               <div className="py-16 text-center">
                 <div className="mb-3 text-4xl">📄</div>
                 <p className="font-semibold text-slate-700">Chưa có hồ sơ phù hợp</p>
-                <p className="mt-1 text-sm text-slate-400">Bạn có thể thêm CV mới hoặc thay đổi bộ lọc.</p>
+                <p className="mt-1 text-sm text-slate-400">Bạn có thể tải CV PDF để AI đọc và tự điền thông tin.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1054,87 +990,23 @@ export default function CandidatesPage() {
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-7">
               <div>
                 <h2 className="text-xl font-extrabold text-slate-800">Thêm CV ứng viên</h2>
-                <p className="mt-1 text-xs text-slate-500">Tải CV PDF lên để AI tự trích xuất, hoặc vẫn có thể dán JSON thủ công.</p>
+                <p className="mt-1 text-xs text-slate-500">Chỉ cần tải CV PDF. AI sẽ đọc, dịch nội dung sang tiếng Việt và tự điền thông tin.</p>
               </div>
               <button type="button" disabled={saving} onClick={resetAddForm} className="rounded-lg px-3 py-2 text-xl text-slate-400 hover:bg-slate-100 disabled:opacity-40">×</button>
             </div>
 
             <form onSubmit={addCandidate} className="space-y-5 p-5 sm:p-7">
-              <div className="grid gap-5 lg:grid-cols-2">
+              <div className="space-y-4">
                 <div>
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <label className="block text-sm font-bold text-slate-700">
-                      Dán JSON thông tin ứng viên
-                    </label>
-                    <button
-                      type="button"
-                      onClick={copyJsonPrompt}
-                      className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-sky-700"
-                    >
-                      📋 Copy JSON mẫu
-                    </button>
-                  </div>
-                  <textarea
-                    value={jsonText}
-                    onChange={(event) => handleJsonChange(event.target.value)}
-                    rows={13}
-                    placeholder={'{\n  "full_name": "Nguyễn Văn A",\n  "birth_year": 1998,\n  "phone": "09xxxxxxxx",\n  "province": "Bắc Ninh",\n  "education": "Đại học",\n  "languages": ["Tiếng Anh: Cơ bản"],\n  "latest_position": "Quality Engineer",\n  "latest_company": "ABC Company"\n}'}
-                    className={`${inputClass} font-mono text-xs`}
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    File CV PDF (tối đa 10 MB) *
+                  </label>
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    onChange={handleCvChange}
+                    className="block w-full rounded-xl border border-slate-200 p-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-2 file:font-bold file:text-sky-700"
                   />
-                  {jsonError && <p className="mt-2 text-xs text-red-600">{jsonError}</p>}
-                  <p className="mt-2 text-xs text-slate-400">Khi dán JSON hợp lệ, các trường bên phải sẽ tự động được điền.</p>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-slate-600">Họ và tên *</label>
-                      <input required value={toText(form.full_name || form.name)} onChange={(e) => updateForm("full_name", e.target.value)} className={inputClass} />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-slate-600">Năm sinh</label>
-                      <input type="number" value={toText(form.birth_year)} onChange={(e) => updateForm("birth_year", e.target.value)} className={inputClass} />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-slate-600">Số điện thoại</label>
-                      <input value={toText(form.phone)} onChange={(e) => updateForm("phone", e.target.value)} className={inputClass} />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-slate-600">Email</label>
-                      <input type="email" value={toText(form.email)} onChange={(e) => updateForm("email", e.target.value)} className={inputClass} />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-slate-600">Tỉnh/thành</label>
-                      <input value={toText(form.province)} onChange={(e) => updateForm("province", e.target.value)} className={inputClass} />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-slate-600">Học vấn</label>
-                      <input value={toText(form.education)} onChange={(e) => updateForm("education", e.target.value)} className={inputClass} />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-600">Địa chỉ</label>
-                    <input value={toText(form.address)} onChange={(e) => updateForm("address", e.target.value)} className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-600">Ngoại ngữ</label>
-                    <input value={toText(form.languages)} onChange={(e) => updateForm("languages", e.target.value)} className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-600">Vị trí gần nhất</label>
-                    <input value={toText(form.latest_position || form.position)} onChange={(e) => updateForm("latest_position", e.target.value)} className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-600">Công ty gần nhất</label>
-                    <input value={toText(form.latest_company || form.company)} onChange={(e) => updateForm("latest_company", e.target.value)} className={inputClass} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">File CV PDF (tối đa 10 MB)</label>
-                  <input type="file" accept="application/pdf,.pdf" onChange={handleCvChange} className="block w-full rounded-xl border border-slate-200 p-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-2 file:font-bold file:text-sky-700" />
                   {cvFile && <p className="mt-1 text-xs text-emerald-700">{cvFile.name}</p>}
                   <button
                     type="button"
@@ -1142,11 +1014,64 @@ export default function CandidatesPage() {
                     disabled={!cvFile || readingCv}
                     className="mt-3 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {readingCv ? "AI đang đọc CV..." : "✨ AI đọc CV và điền thông tin"}
+                    {readingCv ? "AI đang đọc và dịch CV..." : "✨ AI đọc CV và tự điền thông tin"}
                   </button>
                   {aiReadError && <p className="mt-2 text-xs text-red-600">{aiReadError}</p>}
-                  <p className="mt-2 text-xs text-slate-400">AI chỉ trích xuất thông tin có trong CV. Hãy kiểm tra lại trước khi lưu ứng viên.</p>
+                  {aiReadCompleted && (
+                    <p className="mt-2 text-xs font-semibold text-emerald-700">
+                      ✓ AI đã đọc CV. Nội dung mô tả đã được chuyển sang tiếng Việt; vui lòng kiểm tra lại trước khi lưu.
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-slate-400">
+                    Hỗ trợ CV PDF bằng tiếng Việt, tiếng Anh, tiếng Trung và các ngôn ngữ khác. Tên riêng, tên công ty và thuật ngữ chuyên ngành được giữ nguyên khi cần thiết.
+                  </p>
                 </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-slate-600">Họ và tên *</label>
+                    <input required value={toText(form.full_name || form.name)} onChange={(e) => updateForm("full_name", e.target.value)} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-slate-600">Năm sinh</label>
+                    <input type="number" value={toText(form.birth_year)} onChange={(e) => updateForm("birth_year", e.target.value)} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-slate-600">Số điện thoại</label>
+                    <input value={toText(form.phone)} onChange={(e) => updateForm("phone", e.target.value)} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-slate-600">Email</label>
+                    <input type="email" value={toText(form.email)} onChange={(e) => updateForm("email", e.target.value)} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-slate-600">Tỉnh/thành</label>
+                    <input value={toText(form.province)} onChange={(e) => updateForm("province", e.target.value)} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-slate-600">Học vấn</label>
+                    <input value={toText(form.education)} onChange={(e) => updateForm("education", e.target.value)} className={inputClass} />
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-600">Địa chỉ</label>
+                  <input value={toText(form.address)} onChange={(e) => updateForm("address", e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-600">Ngoại ngữ</label>
+                  <input value={toText(form.languages)} onChange={(e) => updateForm("languages", e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-600">Vị trí gần nhất</label>
+                  <input value={toText(form.latest_position || form.position)} onChange={(e) => updateForm("latest_position", e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-600">Công ty gần nhất</label>
+                  <input value={toText(form.latest_company || form.company)} onChange={(e) => updateForm("latest_company", e.target.value)} className={inputClass} />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-bold text-slate-700">Ảnh đại diện (PNG/JPG/WebP, tối đa 3 MB)</label>
                   <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handlePhotoChange} className="block w-full rounded-xl border border-slate-200 p-3 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-sky-50 file:px-3 file:py-2 file:font-bold file:text-sky-700" />
@@ -1169,7 +1094,7 @@ export default function CandidatesPage() {
                   <button type="button" disabled={saving} onClick={resetAddForm} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
                     Hủy
                   </button>
-                  <button type="submit" disabled={saving || Boolean(jsonError)} className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50">
+                  <button type="submit" disabled={saving || !aiReadCompleted || !cvFile} className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50">
                     {checkingDuplicate ? "Đang kiểm tra trùng..." : saving ? "Đang lưu..." : "Lưu ứng viên"}
                   </button>
                 </div>
