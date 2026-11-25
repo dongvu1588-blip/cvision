@@ -321,10 +321,16 @@ Quy tắc:
     }
 
     try {
+      // Làm sạch nội dung copy từ ChatGPT: bỏ Markdown, HTML entity và dấu \
+      // ở cuối dòng (một số giao diện copy JSON kèm các ký tự này).
       const cleaned = manualJson
         .trim()
         .replace(/^```(?:json)?\s*/i, "")
         .replace(/\s*```$/i, "")
+        .replace(/&#x20;|&#32;|&nbsp;/gi, " ")
+        .replace(/&quot;/gi, '"')
+        .replace(/&amp;/gi, "&")
+        .replace(/\\\s*(?=\r?\n)/g, "")
         .trim();
 
       let parsed: unknown;
@@ -336,7 +342,12 @@ Quy tắc:
         if (start < 0 || end <= start) {
           throw new Error("Không tìm thấy đối tượng JSON. Hãy copy đầy đủ phần JSON từ ChatGPT.");
         }
-        parsed = JSON.parse(cleaned.slice(start, end + 1));
+        const jsonText = cleaned.slice(start, end + 1);
+        try {
+          parsed = JSON.parse(jsonText);
+        } catch {
+          throw new Error("JSON vẫn chưa đúng định dạng. Hệ thống đã thử bỏ ký tự thừa nhưng vẫn không đọc được. Hãy yêu cầu ChatGPT trả về JSON thuần, không dùng dấu \\ ở cuối dòng và không thêm ký tự &#x20;.");
+        }
       }
 
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
