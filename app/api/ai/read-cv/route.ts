@@ -20,6 +20,49 @@ type Candidate = {
   latest_company: string | null;
 };
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Tự động thử lại khi Gemini quá tải hoặc lỗi tạm thời
+async function generateWithRetry(
+  ai: GoogleGenAI,
+  contents: any,
+  config: any
+): Promise<any> {
+  const delays = [1500, 3000, 6000];
+
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      return await ai.models.generateContent({
+        model: MODEL,
+        contents,
+        config,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error);
+
+      const retryable =
+        /503|UNAVAILABLE|429|RESOURCE_EXHAUSTED|500|502|504|high demand|overloaded|timeout|ECONNRESET/i.test(
+          message
+        );
+
+      if (!retryable || attempt === delays.length) {
+        throw error;
+      }
+
+      console.warn(
+        `Gemini tạm thời gặp lỗi. Thử lại lần ${attempt + 1}/3 sau ${delays[attempt]}ms.`
+      );
+
+      await wait(delays[attempt]);
+    }
+  }
+
+  throw new Error("Gemini hiện không thể xử lý yêu cầu.");
+}
+
 function parseJson(raw: string): unknown {
   const cleaned = raw
     .trim()
@@ -112,7 +155,10 @@ export async function POST(request: NextRequest) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Chưa cấu hình GEMINI_API_KEY." },
+        {
+          success: false,
+          error: "Chưa cấu hình GEMINI_API_KEY trên máy chủ.",
+        },
         { status: 500 }
       );
     }
@@ -122,7 +168,10 @@ export async function POST(request: NextRequest) {
 
     if (!(file instanceof File)) {
       return NextResponse.json(
-        { error: "Vui lòng chọn file CV PDF." },
+        {
+          success: false,
+          error: "Vui lòng chọn file CV PDF.",
+        },
         { status: 400 }
       );
     }
@@ -132,14 +181,20 @@ export async function POST(request: NextRequest) {
       !file.name.toLowerCase().endsWith(".pdf")
     ) {
       return NextResponse.json(
-        { error: "Chỉ chấp nhận file PDF." },
+        {
+          success: false,
+          error: "Chỉ chấp nhận file PDF.",
+        },
         { status: 400 }
       );
     }
 
     if (file.size === 0 || file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: "File PDF phải lớn hơn 0 và không vượt quá 10 MB." },
+        {
+          success: false,
+          error: "File PDF phải lớn hơn 0 và không vượt quá 10 MB.",
+        },
         { status: 400 }
       );
     }
@@ -151,7 +206,10 @@ export async function POST(request: NextRequest) {
       bytes.subarray(0, 5).toString("ascii") !== "%PDF-"
     ) {
       return NextResponse.json(
-        { error: "File tải lên không phải PDF hợp lệ." },
+        {
+          success: false,
+          error: "File tải lên không phải PDF hợp lệ.",
+        },
         { status: 400 }
       );
     }
@@ -216,9 +274,9 @@ Cấu trúc:
 Hãy tự kiểm tra và dịch toàn bộ trường mô tả trước khi trả kết quả.
 `;
 
-    const extractionResponse = await ai.models.generateContent({
-      model: MODEL,
-      contents: [
+    const extractionResponse = await generateWithRetry(
+      ai,
+      [
         {
           role: "user",
           parts: [
@@ -232,11 +290,11 @@ Hãy tự kiểm tra và dịch toàn bộ trường mô tả trước khi trả
           ],
         },
       ],
-      config: {
+      {
         temperature: 0.1,
         responseMimeType: "application/json",
-      },
-    });
+      }
+    );
 
     if (!extractionResponse.text) {
       throw new Error("AI không đọc được nội dung CV.");
@@ -291,14 +349,14 @@ JSON CẦN KIỂM TRA VÀ DỊCH:
 ${JSON.stringify(extracted)}
 `;
 
-    const translationResponse = await ai.models.generateContent({
-      model: MODEL,
-      contents: translationPrompt,
-      config: {
+    const translationResponse = await generateWithRetry(
+      ai,
+      translationPrompt,
+      {
         temperature: 0.1,
         responseMimeType: "application/json",
-      },
-    });
+      }
+    );
 
     if (!translationResponse.text) {
       throw new Error("AI chưa hoàn thành bước dịch CV sang tiếng Việt.");
@@ -308,7 +366,7 @@ ${JSON.stringify(extracted)}
       parseJson(translationResponse.text)
     );
 
-    // Bảo vệ những dữ liệu phải giữ nguyên từ CV gốc
+    // Bảo vệ dữ liệu phải giữ nguyên từ CV gốc
     translated.full_name = extracted.full_name;
     translated.phone = extracted.phone;
     translated.email = extracted.email;
@@ -323,15 +381,24 @@ ${JSON.stringify(extracted)}
   } catch (error) {
     console.error("AI read CV error:", error);
 
+    const message =
+      error instanceof Error ? error.message : String(error);
+
+    const isOverloaded =
+      /503|UNAVAILABLE|high demand|overloaded|429|RESOURCE_EXHAUSTED/i.test(
+        message
+      );
+
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Không thể đọc và dịch CV. Vui lòng thử lại.",
+        error: isOverloaded
+          ? "Gemini đang quá tải. Hệ thống đã tự động thử lại nhưng chưa thành công. Vui lòng đợi một chút rồi thử lại."
+          : `Không thể đọc và dịch CV: ${message}`,
       },
-      { status: 500 }
+      {
+        status: isOverloaded ? 503 : 500,
+      }
     );
   }
 }
