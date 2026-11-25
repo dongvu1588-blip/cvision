@@ -77,6 +77,7 @@ export default function AIJobMatcher() {
 
   function handleFileChange(selectedFile: File | null) {
     setError("");
+    setConsent(false);
     setCandidate(null);
     setMatches([]);
     setSummary("");
@@ -194,6 +195,8 @@ export default function AIJobMatcher() {
       const submitForm = new FormData();
       submitForm.append("file", file);
       submitForm.append("candidate", JSON.stringify(extractedCandidate));
+      submitForm.append("consent", "true");
+      submitForm.append("consent_policy_version", "1.0");
 
       const submitResponse = await fetch("/api/public/submit-cv", {
         method: "POST",
@@ -317,7 +320,12 @@ export default function AIJobMatcher() {
           className="mt-1 h-4 w-4 accent-violet-600"
         />
         <span>
-          Tôi đồng ý để CVISION đọc, phân tích và lưu CV cùng thông tin liên hệ
+          Tôi đã đọc và đồng ý với{" "}
+          <a href="/privacy-policy" target="_blank" rel="noopener noreferrer"
+            className="font-semibold text-violet-700 underline underline-offset-2 hover:text-violet-900">
+            Chính sách bảo mật CVISION
+          </a>
+          . Tôi đồng ý để CVISION đọc, phân tích và lưu CV cùng thông tin liên hệ
           của tôi nhằm tư vấn, giới thiệu việc làm và cho phép bộ phận tuyển dụng
           CVISION liên hệ khi phù hợp.
         </span>
