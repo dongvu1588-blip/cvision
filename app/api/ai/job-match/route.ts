@@ -4,32 +4,76 @@ import { NextRequest, NextResponse } from "next/server";
 
 const MODEL_NAME = "gemini-3.5-flash-lite";
 const MAX_ATTEMPTS = 3;
+const RETRY_DELAYS = [2000, 5000];
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Nhận diện lỗi từ Google GenAI SDK
+function getErrorInfo(error: unknown) {
+  const err = error as Record<string, any>;
+
+  const message = [
+    err?.message,
+    err?.status,
+    err?.code,
+    err?.statusCode,
+    err?.cause?.message,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const status = Number(
+    err?.status ||
+    err?.statusCode ||
+    err?.response?.status
+  );
+
+  return { message, status };
+}
 
 function isTemporaryError(error: unknown): boolean {
-  const err = error as {
-    status?: number;
-    code?: number | string;
-    message?: string;
-  };
-
-  const message = String(err?.message || "").toUpperCase();
-  const status = Number(err?.status || err?.code);
+  const { message, status } = getErrorInfo(error);
 
   return (
-    status === 429 ||
-    status === 500 ||
-    status === 503 ||
-    message.includes("503") ||
-    message.includes("UNAVAILABLE") ||
-    message.includes("HIGH DEMAND") ||
-    message.includes("RESOURCE_EXHAUSTED") ||
-    message.includes("429") ||
-    message.includes("RATE LIMIT")
+    [408, 429, 500, 502, 503, 504].includes(status) ||
+    /408|429|500|502|503|504|UNAVAILABLE|RESOURCE_EXHAUSTED|INTERNAL|HIGH DEMAND|OVERLOADED|RATE LIMIT|TIMEOUT|ECONNRESET|ETIMEDOUT/i.test(
+      message
+    )
   );
 }
 
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+// Làm sạch và đọc JSON từ Gemini
+function parseJson(raw: string): any {
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+
+    if (start === -1 || end <= start) {
+      throw new Error("AI không trả về JSON hợp lệ.");
+    }
+
+    return JSON.parse(cleaned.slice(start, end + 1));
+  }
+}
+
+// Chuẩn hóa mảng kết quả
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter((item) => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 export async function POST(request: NextRequest) {
@@ -38,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Chưa cấu hình GEMINI_API_KEY." },
+        { success: false, error: "Chưa cấu hình GEMINI_API_KEY." },
         { status: 500 }
       );
     }
@@ -46,16 +90,35 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { candidate, jobs } = body;
 
-    if (!candidate || typeof candidate !== "object") {
+    if (
+      !candidate ||
+      typeof candidate !== "object" ||
+      Array.isArray(candidate)
+    ) {
       return NextResponse.json(
-        { error: "Thiếu thông tin ứng viên." },
+        { success: false, error: "Thiếu thông tin ứng viên." },
         { status: 400 }
       );
     }
 
     if (!Array.isArray(jobs) || jobs.length === 0) {
       return NextResponse.json(
-        { error: "Không có tin tuyển dụng để đối chiếu." },
+        { success: false, error: "Không có tin tuyển dụng để đối chiếu." },
+        { status: 400 }
+      );
+    }
+
+    // Chỉ nhận các tin có ID hợp lệ
+    const validJobs = jobs.filter(
+      (job: any) =>
+        job &&
+        job.id !== null &&
+        job.id !== undefined
+    );
+
+    if (validJobs.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Danh sách việc làm không có ID hợp lệ." },
         { status: 400 }
       );
     }
@@ -71,7 +134,7 @@ THÔNG TIN ỨNG VIÊN:
 ${JSON.stringify(candidate, null, 2)}
 
 DANH SÁCH VIỆC LÀM:
-${JSON.stringify(jobs, null, 2)}
+${JSON.stringify(validJobs, null, 2)}
 
 YÊU CẦU:
 1. Chỉ đề xuất công việc có trong danh sách được cung cấp.
@@ -84,7 +147,8 @@ YÊU CẦU:
 8. Chỉ trả về tối đa 5 công việc.
 9. job_id phải khớp chính xác với ID trong danh sách việc làm.
 
-CHỈ TRẢ VỀ JSON HỢP LỆ theo cấu trúc:
+CHỈ TRẢ VỀ JSON HỢP LỆ:
+
 {
   "summary": "Nhận xét tổng quan về ứng viên",
   "recommendations": [
@@ -104,19 +168,24 @@ CHỈ TRẢ VỀ JSON HỢP LỆ theo cấu trúc:
 }
 `;
 
-    // TỰ ĐỘNG THỬ LẠI KHI GEMINI QUÁ TẢI
-    let response;
+    // Gọi Gemini có cơ chế retry
+    let response: any = null;
     let lastError: unknown;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         console.log(
-          `AI job matching: lần thử ${attempt}/${MAX_ATTEMPTS}`
+          `[CVISION] Gemini job-match: ${attempt}/${MAX_ATTEMPTS}`
         );
 
         response = await ai.models.generateContent({
           model: MODEL_NAME,
           contents: prompt,
+          config: {
+            temperature: 0.2,
+            responseMimeType: "application/json",
+            maxOutputTokens: 4096,
+          },
         });
 
         break;
@@ -124,8 +193,8 @@ CHỈ TRẢ VỀ JSON HỢP LỆ theo cấu trúc:
         lastError = error;
 
         console.error(
-          `Gemini job matching lỗi lần ${attempt}:`,
-          error
+          `[CVISION] Gemini error attempt ${attempt}:`,
+          getErrorInfo(error)
         );
 
         if (!isTemporaryError(error)) {
@@ -136,8 +205,13 @@ CHỈ TRẢ VỀ JSON HỢP LỆ theo cấu trúc:
           throw new Error("GEMINI_TEMPORARY_UNAVAILABLE");
         }
 
-        // Chờ 2 giây, sau đó 4 giây trước khi thử lại
-        await wait(attempt * 2000);
+        const delay = RETRY_DELAYS[attempt - 1];
+
+        console.log(
+          `[CVISION] Retry after ${delay}ms`
+        );
+
+        await wait(delay);
       }
     }
 
@@ -147,45 +221,71 @@ CHỈ TRẢ VỀ JSON HỢP LỆ theo cấu trúc:
 
     const rawText = response.text || "";
 
-    const cleaned = rawText
-      .trim()
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/, "");
-
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-
-    if (start === -1 || end === -1) {
-      throw new Error("AI không trả về JSON hợp lệ.");
+    if (!rawText.trim()) {
+      throw new Error("Gemini trả về nội dung rỗng.");
     }
 
-    const result = JSON.parse(
-      cleaned.slice(start, end + 1)
-    );
+    const result = parseJson(rawText);
 
-    // Chỉ giữ lại những công việc thực sự tồn tại trong danh sách
+    if (
+      !result ||
+      typeof result !== "object" ||
+      Array.isArray(result)
+    ) {
+      throw new Error("Cấu trúc kết quả AI không hợp lệ.");
+    }
+
+    // Kiểm tra ID công việc
     const validJobIds = new Set(
-      jobs.map((job: { id: string }) => job.id)
+      validJobs.map((job: any) => String(job.id))
     );
 
     const recommendations = Array.isArray(result.recommendations)
       ? result.recommendations
           .filter(
-            (item: { job_id?: string }) =>
-              item.job_id && validJobIds.has(item.job_id)
+            (item: any) =>
+              item &&
+              item.job_id !== undefined &&
+              validJobIds.has(String(item.job_id))
           )
+          .map((item: any) => ({
+            job_id: String(item.job_id),
+            job_title:
+              typeof item.job_title === "string"
+                ? item.job_title
+                : "",
+            match_score: Math.max(
+              0,
+              Math.min(100, Math.round(Number(item.match_score) || 0))
+            ),
+            reasons: toStringArray(item.reasons),
+            missing_skills: toStringArray(item.missing_skills),
+            recommendation:
+              typeof item.recommendation === "string"
+                ? item.recommendation
+                : "",
+          }))
+          .sort((a: any, b: any) => b.match_score - a.match_score)
           .slice(0, 5)
       : [];
+
+    console.log(
+      `[CVISION] Job matching completed: ${recommendations.length} recommendations`
+    );
 
     return NextResponse.json({
       success: true,
       result: {
-        summary: result.summary || "",
+        summary:
+          typeof result.summary === "string"
+            ? result.summary
+            : "",
         recommendations,
       },
     });
+
   } catch (error) {
-    console.error("AI job matching error:", error);
+    console.error("[CVISION] AI job matching error:", error);
 
     if (
       error instanceof Error &&
@@ -193,15 +293,22 @@ CHỈ TRẢ VỀ JSON HỢP LỆ theo cấu trúc:
     ) {
       return NextResponse.json(
         {
+          success: false,
           error:
-            "Máy chủ Gemini đang quá tải. Hệ thống đã thử lại 3 lần nhưng chưa thành công. CV của bạn đã được đọc; hãy nhấn phân tích lại sau ít phút.",
+            "Gemini đang quá tải hoặc giới hạn yêu cầu. CV đã được đọc thành công. Vui lòng thử phân tích lại sau ít phút.",
         },
-        { status: 503 }
+        {
+          status: 503,
+          headers: {
+            "Retry-After": "30",
+          },
+        }
       );
     }
 
     return NextResponse.json(
       {
+        success: false,
         error:
           error instanceof Error
             ? error.message
