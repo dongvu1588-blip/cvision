@@ -9,13 +9,18 @@ type AIResult = {
   provider: AIProvider;
 };
 
+type PdfInput = {
+  base64: string;
+  fileName: string;
+};
+
 const GEMINI_PRIMARY_MODEL = "gemini-3.5-flash-lite";
 const GEMINI_BACKUP_MODEL = "gemini-3.8-flash";
 
 const OPENAI_MODEL =
   process.env.OPENAI_FALLBACK_MODEL || "gpt-4.1-mini";
 
-const GEMINI_MAX_ATTEMPTS = 2;
+const MAX_ATTEMPTS = 2;
 
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -35,7 +40,6 @@ function errorInfo(error: unknown) {
   };
 }
 
-// Chuẩn hóa và kiểm tra JSON
 function normalizeJsonText(text: string) {
   const cleaned = text
     .trim()
@@ -55,39 +59,36 @@ function normalizeJsonText(text: string) {
     }
 
     const result = cleaned.slice(start, end + 1);
-
     JSON.parse(result);
 
     return result;
   }
 }
 
-// Xác định lỗi có thể thử lại
-function isTemporaryError(error: unknown) {
+// Chỉ retry với lỗi tạm thời, không retry lỗi API Key hoặc quyền truy cập.
+function isRetryableError(error: unknown) {
   const details = errorInfo(error);
 
-  const rateLimited =
-    details.status === 429 ||
-    /RESOURCE_EXHAUSTED|RATE LIMIT/i.test(details.message);
+  const rateLimit =
+    details.status === 429 &&
+    /rate.?limit|too many requests|resource_exhausted/i.test(
+      details.message
+    );
 
-  if (rateLimited) return false;
-
-  return (
+  const temporary =
     [408, 500, 502, 503, 504].includes(details.status) ||
     /UNAVAILABLE|OVERLOADED|HIGH DEMAND|TIMEOUT|ECONNRESET|ETIMEDOUT/i.test(
       details.message
-    )
-  );
+    );
+
+  return rateLimit || temporary;
 }
 
-// Gọi một model Gemini cụ thể
+// Gọi một model Gemini cụ thể.
 async function callGeminiModel(
   model: string,
   prompt: string,
-  pdf?: {
-    base64: string;
-    fileName: string;
-  }
+  pdf?: PdfInput
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -118,10 +119,10 @@ async function callGeminiModel(
 
   let lastError: unknown;
 
-  for (let attempt = 0; attempt < GEMINI_MAX_ATTEMPTS; attempt++) {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     try {
       console.log(
-        `[CVISION] Gemini model=${model}, attempt=${attempt + 1}/${GEMINI_MAX_ATTEMPTS}`
+        `[CVISION] Gemini model=${model}, attempt=${attempt + 1}/${MAX_ATTEMPTS}`
       );
 
       const response = await ai.models.generateContent({
@@ -154,10 +155,10 @@ async function callGeminiModel(
       });
 
       if (
-        attempt < GEMINI_MAX_ATTEMPTS - 1 &&
-        isTemporaryError(error)
+        attempt < MAX_ATTEMPTS - 1 &&
+        isRetryableError(error)
       ) {
-        await wait(1500 * (attempt + 1));
+        await wait(2000 * (attempt + 1));
         continue;
       }
 
@@ -168,13 +169,10 @@ async function callGeminiModel(
   throw lastError || new Error("GEMINI_UNAVAILABLE");
 }
 
-// Gọi Gemini chính, sau đó Gemini dự phòng
+// Gemini chính -> Gemini dự phòng.
 async function callGeminiWithBackup(
   prompt: string,
-  pdf?: {
-    base64: string;
-    fileName: string;
-  }
+  pdf?: PdfInput
 ): Promise<string> {
   try {
     const result = await callGeminiModel(
@@ -188,38 +186,26 @@ async function callGeminiWithBackup(
     return result;
   } catch (primaryError) {
     console.warn(
-      "[CVISION] Primary Gemini unavailable. Switching to backup Gemini.",
+      "[CVISION] Primary Gemini unavailable. Switching to backup model.",
       errorInfo(primaryError)
     );
   }
 
-  try {
-    const result = await callGeminiModel(
-      GEMINI_BACKUP_MODEL,
-      prompt,
-      pdf
-    );
+  const result = await callGeminiModel(
+    GEMINI_BACKUP_MODEL,
+    prompt,
+    pdf
+  );
 
-    console.log("[CVISION] Backup Gemini succeeded.");
+  console.log("[CVISION] Backup Gemini succeeded.");
 
-    return result;
-  } catch (backupError) {
-    console.error(
-      "[CVISION] Backup Gemini unavailable.",
-      errorInfo(backupError)
-    );
-
-    throw backupError;
-  }
+  return result;
 }
 
-// Gọi OpenAI dự phòng cuối cùng
+// OpenAI dự phòng cuối cùng.
 async function callOpenAI(
   prompt: string,
-  pdf?: {
-    base64: string;
-    fileName: string;
-  }
+  pdf?: PdfInput
 ): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -299,13 +285,10 @@ async function callOpenAI(
   }
 }
 
-// Bộ điều phối AI: Gemini chính -> Gemini dự phòng -> OpenAI
+// Bộ điều phối: Gemini chính -> Gemini dự phòng -> OpenAI.
 async function generateWithFallback(
   prompt: string,
-  pdf?: {
-    base64: string;
-    fileName: string;
-  }
+  pdf?: PdfInput
 ): Promise<AIResult> {
   let geminiError: unknown;
 
@@ -321,7 +304,8 @@ async function generateWithFallback(
       geminiError = error;
 
       console.warn(
-        "[CVISION] Both Gemini models unavailable. Activating OpenAI fallback."
+        "[CVISION] Both Gemini models failed. Activating OpenAI fallback.",
+        errorInfo(error)
       );
     }
   }
@@ -349,13 +333,13 @@ async function generateWithFallback(
       throw error;
     }
 
-    console.error("[CVISION] All AI providers failed.");
+    console.error("[CVISION] OpenAI fallback failed:", error);
 
     throw new Error("ALL_AI_PROVIDERS_FAILED");
   }
 }
 
-// API đọc và dịch PDF
+// API đọc và dịch PDF.
 export async function generateCvJson(
   prompt: string,
   base64: string,
@@ -367,7 +351,7 @@ export async function generateCvJson(
   });
 }
 
-// API đối chiếu việc làm
+// API đối chiếu việc làm.
 export async function generateJobMatchJson(
   prompt: string
 ): Promise<AIResult> {
