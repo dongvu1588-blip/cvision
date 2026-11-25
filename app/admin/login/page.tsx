@@ -11,12 +11,12 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     if (loading) return;
-
     setLoading(true);
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -57,6 +57,51 @@ export default function LoginPage() {
       alert("Không thể đăng nhập: " + message);
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
+      setLoading(false);
+    }
+  }
+
+  async function handleForgotPassword(
+    e: React.FormEvent<HTMLFormElement>
+  ) {
+    e.preventDefault();
+
+    if (loading) return;
+
+    if (!email.trim()) {
+      alert("Vui lòng nhập email tài khoản của bạn.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const redirectUrl =
+        `${window.location.origin}/admin/reset-password`;
+
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        {
+          redirectTo: redirectUrl,
+        }
+      );
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      alert(
+        "Nếu email đã đăng ký, hệ thống sẽ gửi hướng dẫn khôi phục mật khẩu. Vui lòng kiểm tra hộp thư đến và thư rác."
+      );
+
+      setForgotMode(false);
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? "Không thể gửi email khôi phục: " + error.message
+          : "Đã xảy ra lỗi. Vui lòng thử lại."
+      );
+    } finally {
       setLoading(false);
     }
   }
@@ -107,7 +152,10 @@ export default function LoginPage() {
         </div>
 
         <div className="flex items-center justify-center p-7 sm:p-10 md:p-12">
-          <form onSubmit={handleLogin} className="w-full max-w-md">
+          <form
+            onSubmit={forgotMode ? handleForgotPassword : handleLogin}
+            className="w-full max-w-md"
+          >
             <div className="mb-8 text-center md:text-left">
               <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-blue-600 text-2xl font-black text-white shadow-lg shadow-sky-200 md:hidden">
                 C
@@ -116,11 +164,15 @@ export default function LoginPage() {
               <span className="text-xs font-bold uppercase tracking-[0.2em] text-sky-500">
                 Admin Portal
               </span>
+
               <h2 className="mt-3 text-3xl font-black text-slate-800">
-                Chào mừng trở lại!
+                {forgotMode ? "Khôi phục mật khẩu" : "Chào mừng trở lại!"}
               </h2>
+
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Đăng nhập để truy cập hệ thống quản trị CVISION.
+                {forgotMode
+                  ? "Nhập email đăng nhập. CVISION sẽ gửi liên kết để bạn đặt lại mật khẩu."
+                  : "Đăng nhập để truy cập hệ thống quản trị CVISION."}
               </p>
             </div>
 
@@ -140,20 +192,31 @@ export default function LoginPage() {
                 />
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
-                  Mật khẩu
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Nhập mật khẩu"
-                  autoComplete="current-password"
-                  className="w-full rounded-xl border border-sky-100 bg-sky-50/50 px-4 py-3.5 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
-                />
-              </div>
+              {!forgotMode && (
+                <div>
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    Mật khẩu
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Nhập mật khẩu"
+                    autoComplete="current-password"
+                    className="w-full rounded-xl border border-sky-100 bg-sky-50/50 px-4 py-3.5 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                  />
+                  <div className="mt-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setForgotMode(true)}
+                      className="text-sm font-semibold text-sky-600 hover:text-blue-700 hover:underline"
+                    >
+                      Quên mật khẩu?
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button
@@ -161,8 +224,22 @@ export default function LoginPage() {
               disabled={loading}
               className="mt-7 w-full rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-4 font-extrabold text-white shadow-lg shadow-sky-200 transition hover:-translate-y-0.5 hover:from-sky-600 hover:to-blue-700 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? "Đang đăng nhập..." : "Đăng nhập hệ thống →"}
+              {loading
+                ? "Đang xử lý..."
+                : forgotMode
+                  ? "Gửi liên kết khôi phục →"
+                  : "Đăng nhập hệ thống →"}
             </button>
+
+            {forgotMode && (
+              <button
+                type="button"
+                onClick={() => setForgotMode(false)}
+                className="mt-4 w-full text-sm font-semibold text-slate-500 hover:text-sky-600"
+              >
+                ← Quay lại đăng nhập
+              </button>
+            )}
 
             <p className="mt-7 text-center text-xs leading-5 text-slate-400">
               © 2026 CVISION. Hệ thống quản trị nội bộ.
