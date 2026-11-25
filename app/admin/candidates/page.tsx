@@ -83,6 +83,9 @@ export default function CandidatesPage() {
   const [readingCv, setReadingCv] = useState(false);
   const [aiReadError, setAiReadError] = useState("");
   const [aiReadCompleted, setAiReadCompleted] = useState(false);
+  const [manualJson, setManualJson] = useState("");
+  const [manualJsonError, setManualJsonError] = useState("");
+  const [manualJsonSuccess, setManualJsonSuccess] = useState("");
   const [form, setForm] = useState<CandidateJson>({});
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -269,10 +272,112 @@ export default function CandidatesPage() {
     }
   }
 
+  async function copyChatGPTPrompt() {
+    const prompt = `Bạn là chuyên gia tuyển dụng và dịch thuật CV quốc tế.
+
+Hãy đọc file CV PDF tôi đính kèm, trích xuất thông tin và dịch toàn bộ nội dung mô tả sang TIẾNG VIỆT.
+
+Quy tắc:
+- Giữ nguyên họ tên, số điện thoại, email và tên công ty theo CV gốc.
+- Dịch chức danh, học vấn, chuyên ngành, địa chỉ, tỉnh/thành, ngoại ngữ, kỹ năng và kinh nghiệm sang tiếng Việt.
+- Giữ nguyên các mã/thuật ngữ kỹ thuật như PE, PQE, PMC, SMT, AOI, MES, PLC, FAI, QCP, 8D khi cần.
+- Không tự suy đoán hoặc bịa thông tin. Không có thông tin thì dùng null; languages và skills luôn là mảng.
+- birth_year chỉ lấy năm sinh được ghi rõ.
+- Chỉ trả về MỘT JSON hợp lệ, không Markdown, không giải thích và không bọc kết quả trong dấu code fence.
+
+Đúng cấu trúc:
+{
+  "full_name": null,
+  "birth_year": null,
+  "phone": null,
+  "email": null,
+  "address": null,
+  "province": null,
+  "education": null,
+  "languages": [],
+  "skills": [],
+  "experience": null,
+  "latest_position": null,
+  "latest_company": null
+}`;
+
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setManualJsonError("");
+      setManualJsonSuccess("Đã copy hướng dẫn. Hãy mở ChatGPT, dán hướng dẫn và đính kèm file CV PDF.");
+    } catch {
+      setManualJsonError("Không thể tự copy. Vui lòng cho phép trình duyệt truy cập clipboard hoặc copy hướng dẫn thủ công.");
+      setManualJson(prompt);
+    }
+  }
+
+  function handlePasteJson() {
+    setManualJsonError("");
+    setManualJsonSuccess("");
+
+    if (!manualJson.trim()) {
+      setManualJsonError("Vui lòng dán JSON ChatGPT trả về vào ô bên dưới.");
+      return;
+    }
+
+    try {
+      const cleaned = manualJson
+        .trim()
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(cleaned);
+      } catch {
+        const start = cleaned.indexOf("{");
+        const end = cleaned.lastIndexOf("}");
+        if (start < 0 || end <= start) {
+          throw new Error("Không tìm thấy đối tượng JSON. Hãy copy đầy đủ phần JSON từ ChatGPT.");
+        }
+        parsed = JSON.parse(cleaned.slice(start, end + 1));
+      }
+
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("JSON phải là một đối tượng thông tin ứng viên.");
+      }
+
+      const item = parsed as Record<string, unknown>;
+      const candidate: CandidateJson = {
+        full_name: toText(item.full_name ?? item.name),
+        birth_year: item.birth_year === null || item.birth_year === undefined ? "" : String(item.birth_year),
+        phone: toText(item.phone),
+        email: toText(item.email),
+        address: toText(item.address),
+        province: toText(item.province),
+        education: toText(item.education),
+        languages: toText(item.languages),
+        skills: toText(item.skills),
+        experience: toText(item.experience),
+        latest_position: toText(item.latest_position ?? item.position),
+        latest_company: toText(item.latest_company ?? item.company),
+      };
+
+      if (!toText(candidate.full_name).trim()) {
+        throw new Error("JSON chưa có họ và tên ứng viên (full_name).");
+      }
+
+      setForm(candidate);
+      setAiReadCompleted(true);
+      setManualJsonSuccess("✓ Đã đọc JSON và tự điền thông tin vào biểu mẫu. Vui lòng kiểm tra trước khi lưu.");
+    } catch (error) {
+      setManualJsonError(error instanceof Error ? error.message : "JSON không hợp lệ.");
+    }
+  }
+
   function handleCvChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] || null;
     setAiReadError("");
     setAiReadCompleted(false);
+    setManualJson("");
+    setManualJsonError("");
+    setManualJsonSuccess("");
     setForm({});
     if (file && file.type !== "application/pdf") {
       alert("Vui lòng chọn file CV định dạng PDF.");
@@ -305,6 +410,9 @@ export default function CandidatesPage() {
   function resetAddForm() {
     setAiReadError("");
     setAiReadCompleted(false);
+    setManualJson("");
+    setManualJsonError("");
+    setManualJsonSuccess("");
     setForm({});
     setCvFile(null);
     setPhotoFile(null);
@@ -1025,6 +1133,52 @@ export default function CandidatesPage() {
                   <p className="mt-2 text-xs text-slate-400">
                     Hỗ trợ CV PDF bằng tiếng Việt, tiếng Anh, tiếng Trung và các ngôn ngữ khác. Tên riêng, tên công ty và thuật ngữ chuyên ngành được giữ nguyên khi cần thiết.
                   </p>
+                </div>
+
+                <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800">Đọc CV bằng ChatGPT (phương án dự phòng)</h3>
+                      <p className="mt-1 text-xs leading-5 text-slate-600">
+                        Khi AI tự động bị quá tải, bạn có thể gửi file CV lên ChatGPT, sau đó dán JSON kết quả vào đây.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={copyChatGPTPrompt}
+                      className="rounded-lg bg-violet-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-violet-700"
+                    >
+                      📋 Copy hướng dẫn ChatGPT
+                    </button>
+                  </div>
+                  <ol className="mt-3 list-inside list-decimal space-y-1 text-xs text-slate-600">
+                    <li>Mở ChatGPT, dán hướng dẫn vừa copy và đính kèm chính file CV PDF.</li>
+                    <li>Yêu cầu ChatGPT trả về JSON theo cấu trúc trong hướng dẫn.</li>
+                    <li>Copy toàn bộ JSON và dán vào ô bên dưới.</li>
+                  </ol>
+                  <textarea
+                    value={manualJson}
+                    onChange={(event) => {
+                      setManualJson(event.target.value);
+                      setManualJsonError("");
+                      setManualJsonSuccess("");
+                    }}
+                    rows={7}
+                    placeholder='Dán JSON ChatGPT trả về vào đây...'
+                    className="mt-3 w-full rounded-xl border border-violet-200 bg-white px-3 py-3 font-mono text-xs text-slate-700 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
+                  />
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handlePasteJson}
+                      disabled={!manualJson.trim()}
+                      className="rounded-lg bg-slate-800 px-4 py-2.5 text-xs font-bold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Đọc JSON và tự điền
+                    </button>
+                    {manualJsonSuccess && <p className="text-xs font-semibold text-emerald-700">{manualJsonSuccess}</p>}
+                  </div>
+                  {manualJsonError && <p className="mt-2 whitespace-pre-wrap text-xs text-red-600">{manualJsonError}</p>}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
