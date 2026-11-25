@@ -83,6 +83,8 @@ export default function CandidatesPage() {
   const [readingCv, setReadingCv] = useState(false);
   const [aiReadError, setAiReadError] = useState("");
   const [aiReadCompleted, setAiReadCompleted] = useState(false);
+  const [geminiJson, setGeminiJson] = useState("");
+  const [geminiJsonError, setGeminiJsonError] = useState("");
   const [form, setForm] = useState<CandidateJson>({});
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -269,9 +271,85 @@ export default function CandidatesPage() {
     }
   }
 
+  function buildGeminiPrompt(): string {
+    return `Bạn là chuyên gia tuyển dụng và dịch thuật CV quốc tế. Tôi sẽ đính kèm một file CV PDF. Hãy đọc toàn bộ file, trích xuất thông tin ứng viên và dịch tất cả nội dung mô tả sang TIẾNG VIỆT.\n\nQuy tắc:\n- Giữ nguyên họ tên, số điện thoại, email và tên công ty/thương hiệu.\n- Dịch chức danh, học vấn, chuyên ngành, kỹ năng, địa chỉ và toàn bộ kinh nghiệm sang tiếng Việt khi có thể.\n- Giữ nguyên mã kỹ thuật như PE, PQE, PMC, SMT, AOI, MES, PLC, FAI, QCP, 8D, BMS.\n- Không tự bịa thông tin; không có thông tin thì dùng null, mảng languages và skills dùng [].\n- languages ghi tên ngôn ngữ bằng tiếng Việt, ví dụ Tiếng Trung, Tiếng Anh.\n- Không đổi tên người nước ngoài sang tên Việt.\n\nCHỈ TRẢ VỀ MỘT JSON THUẦN, không Markdown, không code fence, không giải thích, không thêm ký tự HTML hoặc dấu gạch chéo ở cuối dòng. Dùng đúng cấu trúc:\n{\n  "full_name": null,\n  "birth_year": null,\n  "phone": null,\n  "email": null,\n  "address": null,\n  "province": null,\n  "education": null,\n  "languages": [],\n  "skills": [],\n  "experience": null,\n  "latest_position": null,\n  "latest_company": null\n}`;
+  }
+
+  async function copyGeminiPrompt() {
+    try {
+      await navigator.clipboard.writeText(buildGeminiPrompt());
+      alert("Đã copy hướng dẫn. Hãy mở Gemini, dán hướng dẫn và đính kèm file CV PDF.");
+    } catch {
+      setGeminiJsonError("Trình duyệt không cho phép copy tự động. Vui lòng thử lại hoặc copy hướng dẫn thủ công.");
+    }
+  }
+
+  function handleGeminiJsonImport() {
+    setGeminiJsonError("");
+    try {
+      let cleaned = geminiJson.trim();
+      cleaned = cleaned
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .replace(/&nbsp;|&#x20;|&#32;|&#xA0;/gi, " ")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;|&apos;/gi, "'")
+        .replace(/&amp;/gi, "&")
+        .replace(/\\\s*(?=\r?\n)/g, "")
+        .trim();
+
+      const start = cleaned.indexOf("{");
+      const end = cleaned.lastIndexOf("}");
+      if (start < 0 || end <= start) {
+        throw new Error("Không tìm thấy đối tượng JSON. Hãy copy toàn bộ JSON Gemini trả về.");
+      }
+
+      const parsed = JSON.parse(cleaned.slice(start, end + 1));
+      const candidate = (parsed && typeof parsed === "object" && "candidate" in parsed)
+        ? (parsed as { candidate: CandidateJson }).candidate
+        : parsed as CandidateJson;
+
+      if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+        throw new Error("Dữ liệu ứng viên không đúng cấu trúc.");
+      }
+
+      const name = toText(candidate.full_name || candidate.name).trim();
+      if (!name) {
+        throw new Error("JSON chưa có họ và tên ứng viên. Vui lòng kiểm tra kết quả Gemini.");
+      }
+
+      setForm({
+        full_name: name,
+        birth_year: candidate.birth_year ?? "",
+        phone: candidate.phone || "",
+        email: candidate.email || "",
+        address: candidate.address || "",
+        province: candidate.province || "",
+        education: candidate.education || "",
+        languages: toText(candidate.languages),
+        skills: toText(candidate.skills),
+        experience: candidate.experience || "",
+        latest_position: candidate.latest_position || candidate.position || "",
+        latest_company: candidate.latest_company || candidate.company || "",
+      });
+      setAiReadCompleted(true);
+      setAiReadError("");
+      setGeminiJsonError("");
+      alert("Đã đọc JSON từ Gemini và tự điền thông tin. Bạn kiểm tra lại rồi lưu ứng viên nhé.");
+    } catch (error) {
+      setGeminiJsonError(
+        error instanceof Error
+          ? `Không đọc được JSON: ${error.message}`
+          : "Không đọc được JSON Gemini trả về."
+      );
+    }
+  }
+
   function handleCvChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] || null;
     setAiReadError("");
+    setGeminiJsonError("");
+    setGeminiJson("");
     setAiReadCompleted(false);
     setForm({});
     if (file && file.type !== "application/pdf") {
@@ -304,6 +382,8 @@ export default function CandidatesPage() {
 
   function resetAddForm() {
     setAiReadError("");
+    setGeminiJsonError("");
+    setGeminiJson("");
     setAiReadCompleted(false);
     setForm({});
     setCvFile(null);
@@ -1025,6 +1105,30 @@ export default function CandidatesPage() {
                   <p className="mt-2 text-xs text-slate-400">
                     Hỗ trợ CV PDF bằng tiếng Việt, tiếng Anh, tiếng Trung và các ngôn ngữ khác. Tên riêng, tên công ty và thuật ngữ chuyên ngành được giữ nguyên khi cần thiết.
                   </p>
+                </div>
+
+                <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-800">Đọc CV bằng Gemini (phương án dự phòng)</h3>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">Nếu Gemini tự động trên CVISION bị quá tải, bạn có thể mở Gemini, gửi file PDF cùng hướng dẫn, rồi dán JSON kết quả vào đây.</p>
+                    </div>
+                    <button type="button" onClick={copyGeminiPrompt} className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-700">📋 Copy hướng dẫn Gemini</button>
+                  </div>
+                  <ol className="list-decimal space-y-1 pl-5 text-xs leading-5 text-slate-600">
+                    <li>Mở Gemini và dán hướng dẫn vừa copy, đồng thời đính kèm đúng file CV PDF.</li>
+                    <li>Yêu cầu Gemini trả về JSON thuần theo cấu trúc trong hướng dẫn.</li>
+                    <li>Copy toàn bộ JSON và dán vào ô bên dưới.</li>
+                  </ol>
+                  <textarea
+                    rows={7}
+                    value={geminiJson}
+                    onChange={(event) => setGeminiJson(event.target.value)}
+                    placeholder={'Dán JSON Gemini trả về vào đây...'}
+                    className="w-full rounded-xl border border-violet-200 bg-white p-3 font-mono text-xs leading-5 text-slate-700 outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100"
+                  />
+                  <button type="button" onClick={handleGeminiJsonImport} disabled={!geminiJson.trim()} className="rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50">Đọc JSON và tự điền</button>
+                  {geminiJsonError && <p className="text-xs font-medium text-red-600">{geminiJsonError}</p>}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
