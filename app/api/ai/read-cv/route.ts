@@ -30,7 +30,8 @@ async function generateWithRetry(
   contents: any,
   config: any
 ): Promise<any> {
-  const delays = [1500, 3000, 6000];
+  // 1 lần gọi ban đầu + tối đa 4 lần thử lại
+  const delays = [2000, 5000, 10000, 15000];
 
   for (let attempt = 0; attempt <= delays.length; attempt++) {
     try {
@@ -43,24 +44,33 @@ async function generateWithRetry(
       const message =
         error instanceof Error ? error.message : String(error);
 
+      let errorDetails = '';
+      try {
+        errorDetails = JSON.stringify(error);
+      } catch {
+        errorDetails = message;
+      }
+
+      const combinedError = `${message} ${errorDetails}`;
       const retryable =
-        /503|UNAVAILABLE|429|RESOURCE_EXHAUSTED|500|502|504|high demand|overloaded|timeout|ECONNRESET/i.test(
-          message
+        /\b(408|429|500|502|503|504)\b|UNAVAILABLE|RESOURCE_EXHAUSTED|INTERNAL|high demand|overloaded|timeout|ECONNRESET|ETIMEDOUT/i.test(
+          combinedError
         );
 
       if (!retryable || attempt === delays.length) {
         throw error;
       }
 
+      const jitter = Math.floor(Math.random() * 1000);
+      const delay = delays[attempt] + jitter;
       console.warn(
-        `Gemini tạm thời gặp lỗi. Thử lại lần ${attempt + 1}/3 sau ${delays[attempt]}ms.`
+        `Gemini gặp lỗi tạm thời. Thử lại lần ${attempt + 1}/${delays.length} sau ${delay}ms.`
       );
-
-      await wait(delays[attempt]);
+      await wait(delay);
     }
   }
 
-  throw new Error("Gemini hiện không thể xử lý yêu cầu.");
+  throw new Error('Gemini hiện không thể xử lý yêu cầu.');
 }
 
 function parseJson(raw: string): unknown {
@@ -217,7 +227,6 @@ export async function POST(request: NextRequest) {
     const ai = new GoogleGenAI({ apiKey });
     const base64 = bytes.toString("base64");
 
-    // LƯỢT 1: ĐỌC VÀ TRÍCH XUẤT CV
     const extractionPrompt = `
 Bạn là chuyên gia tuyển dụng quốc tế và dịch thuật hồ sơ nhân sự.
 
@@ -274,6 +283,8 @@ Cấu trúc:
 Hãy tự kiểm tra và dịch toàn bộ trường mô tả trước khi trả kết quả.
 `;
 
+    // Chỉ gọi Gemini một lần: vừa đọc CV vừa dịch nội dung sang tiếng Việt.
+    // Gộp hai lượt giúp giảm số request cho mỗi CV.
     const extractionResponse = await generateWithRetry(
       ai,
       [
@@ -300,83 +311,14 @@ Hãy tự kiểm tra và dịch toàn bộ trường mô tả trước khi trả
       throw new Error("AI không đọc được nội dung CV.");
     }
 
-    const extracted = normalizeCandidate(
+    const candidate = normalizeCandidate(
       parseJson(extractionResponse.text)
     );
 
-    // LƯỢT 2: KIỂM TRA VÀ DỊCH LẠI CÁC TRƯỜNG MÔ TẢ
-    const translationPrompt = `
-Bạn là chuyên gia dịch thuật hồ sơ tuyển dụng.
-
-Hãy kiểm tra và hiệu chỉnh JSON ứng viên dưới đây.
-
-MỤC TIÊU:
-Tất cả nội dung mô tả phải được viết bằng TIẾNG VIỆT tự nhiên, chính xác.
-
-BẮT BUỘC DỊCH CÁC TRƯỜNG:
-- address
-- province
-- education
-- languages
-- skills
-- experience
-- latest_position
-
-Nếu những trường này còn tiếng Trung, tiếng Anh hoặc ngôn ngữ khác thì phải dịch sang tiếng Việt.
-
-QUY TẮC GIỮ NGUYÊN:
-- full_name: tuyệt đối giữ nguyên tên gốc.
-- latest_company: giữ nguyên tên công ty.
-- phone: giữ nguyên.
-- email: giữ nguyên.
-- birth_year: giữ nguyên.
-- Các mã kỹ thuật PE, PQE, PMC, SMT, AOI, MES, PLC, FAI, QCP, 8D, BMS giữ nguyên khi cần.
-- Không dịch tên riêng, thương hiệu, mã sản phẩm và tên chứng chỉ.
-- Có thể giữ thuật ngữ chuyên ngành gốc trong ngoặc sau phần giải thích tiếng Việt.
-
-QUY TẮC ĐỘ CHÍNH XÁC:
-- Không thêm thông tin không có trong JSON.
-- Không tự suy đoán.
-- Không làm mất mốc thời gian, tên vị trí, nội dung công việc hoặc thành tích.
-- Nếu không có thông tin thì giữ null hoặc mảng rỗng.
-- Không được để nguyên đoạn tiếng Trung hoặc tiếng Anh trong phần mô tả nếu có thể dịch được.
-- languages phải là tên ngôn ngữ bằng tiếng Việt, ví dụ "Tiếng Trung", "Tiếng Anh".
-
-CHỈ TRẢ VỀ JSON HỢP LỆ theo đúng cấu trúc ban đầu.
-Không Markdown, không giải thích bên ngoài JSON.
-
-JSON CẦN KIỂM TRA VÀ DỊCH:
-${JSON.stringify(extracted)}
-`;
-
-    const translationResponse = await generateWithRetry(
-      ai,
-      translationPrompt,
-      {
-        temperature: 0.1,
-        responseMimeType: "application/json",
-      }
-    );
-
-    if (!translationResponse.text) {
-      throw new Error("AI chưa hoàn thành bước dịch CV sang tiếng Việt.");
-    }
-
-    const translated = normalizeCandidate(
-      parseJson(translationResponse.text)
-    );
-
-    // Bảo vệ dữ liệu phải giữ nguyên từ CV gốc
-    translated.full_name = extracted.full_name;
-    translated.phone = extracted.phone;
-    translated.email = extracted.email;
-    translated.birth_year = extracted.birth_year;
-    translated.latest_company = extracted.latest_company;
-
     return NextResponse.json({
       success: true,
-      candidate: translated,
-      message: "AI đã đọc CV và xử lý bản dịch tiếng Việt.",
+      candidate,
+      message: "AI đã đọc CV và dịch nội dung sang tiếng Việt.",
     });
   } catch (error) {
     console.error("AI read CV error:", error);
@@ -384,16 +326,23 @@ ${JSON.stringify(extracted)}
     const message =
       error instanceof Error ? error.message : String(error);
 
+    let errorDetails = "";
+    try {
+      errorDetails = JSON.stringify(error);
+    } catch {
+      errorDetails = message;
+    }
+
     const isOverloaded =
-      /503|UNAVAILABLE|high demand|overloaded|429|RESOURCE_EXHAUSTED/i.test(
-        message
+      /\b(408|429|500|502|503|504)\b|UNAVAILABLE|RESOURCE_EXHAUSTED|INTERNAL|high demand|overloaded|timeout|ECONNRESET|ETIMEDOUT/i.test(
+        `${message} ${errorDetails}`
       );
 
     return NextResponse.json(
       {
         success: false,
         error: isOverloaded
-          ? "Gemini đang quá tải. Hệ thống đã tự động thử lại nhưng chưa thành công. Vui lòng đợi một chút rồi thử lại."
+          ? "Gemini đang bận hoặc đã chạm giới hạn yêu cầu. Hệ thống đã thử lại nhưng chưa thành công. Vui lòng đợi một chút rồi thử lại. Nếu lỗi tiếp tục, hãy kiểm tra hạn mức Gemini API trong Google AI Studio."
           : `Không thể đọc và dịch CV: ${message}`,
       },
       {
