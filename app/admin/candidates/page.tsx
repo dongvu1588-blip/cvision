@@ -58,10 +58,21 @@ const menu = [
 const inputClass =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100";
 
-const JSON_COPY_PROMPT = `Hãy đọc CV PDF tôi gửi kèm và trích xuất thông tin ứng viên.
-Chỉ lấy thông tin có trong CV, không tự suy đoán hoặc bịa thông tin.
-Nếu không tìm thấy thông tin, hãy để null; riêng languages và skills có thể để mảng rỗng [].
-Trả về duy nhất một JSON hợp lệ, không giải thích, không dùng dấu Markdown.
+const JSON_COPY_PROMPT = `Bạn là chuyên gia tuyển dụng nhân sự và dịch thuật CV quốc tế.
+
+Hãy đọc toàn bộ CV PDF tôi gửi kèm, trích xuất chính xác thông tin ứng viên và dịch toàn bộ nội dung mô tả sang TIẾNG VIỆT.
+
+QUY TẮC:
+1. Chỉ sử dụng thông tin có trong CV, tuyệt đối không tự suy đoán hoặc bịa thông tin.
+2. Tất cả nội dung mô tả phải viết bằng tiếng Việt; dịch nội dung tiếng Anh, tiếng Trung và ngôn ngữ khác sang tiếng Việt khi có thể.
+3. Giữ nguyên họ tên ứng viên, tên công ty, thương hiệu, email và số điện thoại theo CV gốc.
+4. Dịch chức danh, học vấn, chuyên ngành, kỹ năng và mô tả kinh nghiệm sang tiếng Việt.
+5. Giữ nguyên các mã/thuật ngữ kỹ thuật như PE, PQE, PMC, SMT, AOI, MES, PLC, FAI, QCP, 8D khi cần thiết.
+6. Không tự suy luận trình độ ngoại ngữ. languages chỉ ghi ngoại ngữ ứng viên biết được nêu trong CV, bằng tên tiếng Việt như Tiếng Trung, Tiếng Anh.
+7. birth_year chỉ lấy năm sinh nếu CV ghi rõ.
+8. Không tìm thấy thông tin thì trả về null; riêng languages và skills dùng mảng rỗng [].
+9. Trả về đúng các trường bên dưới, không thêm trường khác.
+10. Chỉ trả về MỘT JSON hợp lệ, không Markdown, không code fence, không giải thích bên ngoài JSON. Dùng dấu nháy kép cho mọi key và chuỗi.
 
 Cấu trúc JSON:
 {
@@ -120,7 +131,7 @@ export default function CandidatesPage() {
   async function copyJsonPrompt() {
     try {
       await navigator.clipboard.writeText(JSON_COPY_PROMPT);
-      alert("Đã copy hướng dẫn. Hãy mở ChatGPT, tải CV PDF lên và dán hướng dẫn này vào.");
+      alert("Đã copy hướng dẫn Gemini. Hãy mở Gemini, đính kèm CV PDF và dán hướng dẫn này vào.");
     } catch {
       alert("Trình duyệt không cho phép copy tự động. Hãy kiểm tra quyền Clipboard hoặc mở website bằng HTTPS.");
     }
@@ -1092,7 +1103,7 @@ export default function CandidatesPage() {
                       onClick={copyJsonPrompt}
                       className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-sky-700"
                     >
-                      📋 Copy JSON mẫu
+                      📋 Copy hướng dẫn Gemini
                     </button>
                   </div>
                   <textarea
