@@ -54,6 +54,7 @@ export default function CVServicePage() {
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
+  const [existingCv, setExistingCv] = useState<File | null>(null);
   const [workExperience, setWorkExperience] = useState("");
   const [skills, setSkills] = useState("");
   const [languages, setLanguages] = useState("");
@@ -81,6 +82,7 @@ export default function CVServicePage() {
     setEmail("");
     setAddress("");
     setPhoto(null);
+    setExistingCv(null);
     setWorkExperience("");
     setSkills("");
     setLanguages("");
@@ -97,6 +99,8 @@ export default function CVServicePage() {
 
     const fileInput = document.getElementById("cv-request-photo") as HTMLInputElement | null;
     if (fileInput) fileInput.value = "";
+    const cvInput = document.getElementById("cv-request-existing") as HTMLInputElement | null;
+    if (cvInput) cvInput.value = "";
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -109,12 +113,26 @@ export default function CVServicePage() {
       return;
     }
 
+    if (existingCv) {
+      const allowedExtensions = ["pdf", "doc", "docx"];
+      const extension = existingCv.name.split(".").pop()?.toLowerCase() || "";
+      if (!allowedExtensions.includes(extension)) {
+        setErrorMessage("CV cũ chỉ chấp nhận định dạng PDF, DOC hoặc DOCX.");
+        return;
+      }
+      if (existingCv.size > 10 * 1024 * 1024) {
+        setErrorMessage("CV cũ không được vượt quá 10 MB.");
+        return;
+      }
+    }
+
     if (noLanguage && !languages.trim()) {
       setLanguages("Không có");
     }
 
     setLoading(true);
     let uploadedPhotoPath: string | null = null;
+    let uploadedCvPath: string | null = null;
 
     try {
       const safeFileName = photo.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -134,6 +152,25 @@ export default function CVServicePage() {
         );
       }
 
+      if (existingCv) {
+        const safeCvName = existingCv.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        uploadedCvPath = `cv-requests/original-cvs/${Date.now()}-${crypto.randomUUID()}-${safeCvName}`;
+
+        const { error: cvUploadError } = await supabase.storage
+          .from("candidate-cvs")
+          .upload(uploadedCvPath, existingCv, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: existingCv.type || undefined,
+          });
+
+        if (cvUploadError) {
+          throw new Error(
+            `Không tải được CV cũ lên hệ thống: ${cvUploadError.message}. Hãy kiểm tra quyền upload của bucket candidate-cvs.`
+          );
+        }
+      }
+
       const finalLanguages = noLanguage ? "Không có" : languages.trim();
 
       const { error: insertError } = await supabase.from("cv_requests").insert({
@@ -143,6 +180,7 @@ export default function CVServicePage() {
         email: email.trim() || null,
         address: address.trim(),
         photo_url: uploadedPhotoPath,
+        old_cv_url: uploadedCvPath,
         work_experience: workExperience.trim(),
         skills: skills.trim(),
         languages: finalLanguages,
@@ -163,15 +201,28 @@ export default function CVServicePage() {
       });
 
       if (insertError) {
-        if (uploadedPhotoPath) {
-          await supabase.storage.from("candidate-cvs").remove([uploadedPhotoPath]);
+        const filesToRemove = [uploadedPhotoPath, uploadedCvPath].filter(
+          (path): path is string => Boolean(path)
+        );
+        if (filesToRemove.length) {
+          await supabase.storage.from("candidate-cvs").remove(filesToRemove);
         }
         throw new Error(`Không lưu được thông tin đăng ký: ${insertError.message}`);
       }
 
+      // Đã lưu thành công trong Storage và database, không xóa các file này.
+      uploadedPhotoPath = null;
+      uploadedCvPath = null;
+
       setSuccess(true);
       resetForm();
     } catch (error) {
+      const filesToRemove = [uploadedPhotoPath, uploadedCvPath].filter(
+        (path): path is string => Boolean(path)
+      );
+      if (filesToRemove.length) {
+        await supabase.storage.from("candidate-cvs").remove(filesToRemove);
+      }
       console.error("CVISION CV request error:", error);
       setErrorMessage(
         error instanceof Error
@@ -313,7 +364,32 @@ export default function CVServicePage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-9">
-              {/* 1. PHOTO */}
+              {/* 1. EXISTING CV - OPTIONAL */}
+              <section className="space-y-4">
+                <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">
+                  01. CV hiện tại <span className="text-sm font-normal text-slate-500">(Không bắt buộc)</span>
+                </h3>
+                <p className="text-sm leading-6 text-slate-500">
+                  Nếu đã có CV, bạn có thể tải lên để CVISION tham khảo và hỗ trợ chỉnh sửa, tối ưu nội dung. Nếu chưa có, bạn vẫn có thể tiếp tục đăng ký bình thường.
+                </p>
+                <input
+                  id="cv-request-existing"
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(e) => setExistingCv(e.target.files?.[0] ?? null)}
+                  className={inputClass}
+                />
+                <p className="text-xs text-slate-400">
+                  Chấp nhận PDF, DOC hoặc DOCX; dung lượng tối đa 10 MB.
+                </p>
+                {existingCv && (
+                  <p className="rounded-xl bg-sky-50 p-3 text-sm text-sky-700">
+                    Đã chọn: {existingCv.name}
+                  </p>
+                )}
+              </section>
+
+              {/* 2. PHOTO */}
               <section className="space-y-4">
                 <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">
                   01. Ảnh CV <span className="text-red-500">*</span>
@@ -335,7 +411,7 @@ export default function CVServicePage() {
               {/* 2. PERSONAL */}
               <section className="space-y-4">
                 <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">
-                  02. Thông tin cá nhân <span className="text-red-500">*</span>
+                  03. Thông tin cá nhân <span className="text-red-500">*</span>
                 </h3>
                 <p className="text-sm text-slate-500">Vui lòng nhập tên đầy đủ bằng chữ in hoa để hồ sơ được trình bày thống nhất.</p>
                 <div>
@@ -367,7 +443,7 @@ export default function CVServicePage() {
               {/* 3. EXPERIENCE */}
               <section className="space-y-4">
                 <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">
-                  03. Kinh nghiệm làm việc <span className="text-red-500">*</span>
+                  04. Kinh nghiệm làm việc <span className="text-red-500">*</span>
                 </h3>
                 <p className="text-sm leading-6 text-slate-500">
                   Sắp xếp từ công việc gần nhất; viết ngắn gọn, đúng trọng tâm. Nếu đã có kinh nghiệm, ưu tiên 2–3 công việc liên quan. Nếu chưa có, có thể ghi thực tập hoặc công việc thể hiện khả năng thích nghi và trách nhiệm.
@@ -378,7 +454,7 @@ export default function CVServicePage() {
               {/* 4. SKILLS */}
               <section className="space-y-4">
                 <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">
-                  04. Kỹ năng <span className="text-red-500">*</span>
+                  05. Kỹ năng <span className="text-red-500">*</span>
                 </h3>
                 <p className="text-sm text-slate-500">Chỉ liệt kê kỹ năng phù hợp với ngành nghề ứng tuyển, ví dụ: PLC, Microsoft Office, AutoCAD, 2D, 3D...</p>
                 <textarea required rows={3} value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="Nhập các kỹ năng của bạn..." className={inputClass} />
@@ -387,7 +463,7 @@ export default function CVServicePage() {
               {/* 5. LANGUAGES */}
               <section className="space-y-4">
                 <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">
-                  05. Ngoại ngữ <span className="text-red-500">*</span>
+                  06. Ngoại ngữ <span className="text-red-500">*</span>
                 </h3>
                 <p className="text-sm text-slate-500">Có thể ghi tiếng Anh, Trung, Hàn, Nhật... kèm trình độ. Nếu không có, vui lòng chọn “Không có”.</p>
                 <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
@@ -411,7 +487,7 @@ export default function CVServicePage() {
 
               {/* 6. INTERESTS */}
               <section className="space-y-4">
-                <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">06. Sở thích</h3>
+                <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">07. Sở thích</h3>
                 <p className="text-sm text-slate-500">Có thể chia sẻ sở thích cá nhân để nhà tuyển dụng hiểu thêm về bạn.</p>
                 <textarea rows={2} value={interests} onChange={(e) => setInterests(e.target.value)} placeholder="Ví dụ: đọc sách, thể thao, du lịch..." className={inputClass} />
               </section>
@@ -419,7 +495,7 @@ export default function CVServicePage() {
               {/* 7. CAREER OBJECTIVE */}
               <section className="space-y-4">
                 <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">
-                  07. Mục tiêu nghề nghiệp <span className="text-red-500">*</span>
+                  08. Mục tiêu nghề nghiệp <span className="text-red-500">*</span>
                 </h3>
                 <p className="text-sm text-slate-500">Viết ngắn gọn, rõ ràng về định hướng và mục tiêu công việc.</p>
                 <textarea required rows={3} value={careerObjective} onChange={(e) => setCareerObjective(e.target.value)} placeholder="Nhập mục tiêu nghề nghiệp của bạn..." className={inputClass} />
@@ -428,7 +504,7 @@ export default function CVServicePage() {
               {/* 8. EDUCATION */}
               <section className="space-y-4">
                 <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">
-                  08. Học vấn <span className="text-red-500">*</span>
+                  09. Học vấn <span className="text-red-500">*</span>
                 </h3>
                 <p className="text-sm text-slate-500">Ghi tên trường, chuyên ngành, thời gian học và xếp loại (nếu phù hợp).</p>
                 <textarea required rows={3} value={education} onChange={(e) => setEducation(e.target.value)} placeholder="Tên trường – Chuyên ngành – Thời gian – Xếp loại..." className={inputClass} />
@@ -436,21 +512,21 @@ export default function CVServicePage() {
 
               {/* 9. CERTIFICATES */}
               <section className="space-y-4">
-                <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">09. Chứng chỉ</h3>
+                <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">10. Chứng chỉ</h3>
                 <p className="text-sm text-slate-500">Ví dụ: Chứng chỉ kế toán tổng hợp, MOS...</p>
                 <textarea rows={2} value={certificates} onChange={(e) => setCertificates(e.target.value)} placeholder="Liệt kê chứng chỉ (nếu có)..." className={inputClass} />
               </section>
 
               {/* 10. AWARDS */}
               <section className="space-y-4">
-                <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">10. Giải thưởng</h3>
+                <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">11. Giải thưởng</h3>
                 <p className="text-sm text-slate-500">Các giải thưởng liên quan đến học tập, chuyên môn hoặc công việc (nếu có).</p>
                 <textarea rows={2} value={awards} onChange={(e) => setAwards(e.target.value)} placeholder="Liệt kê giải thưởng (nếu có)..." className={inputClass} />
               </section>
 
               {/* 11. REFEREE */}
               <section className="space-y-4">
-                <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">11. Người tham chiếu</h3>
+                <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">12. Người tham chiếu</h3>
                 <p className="text-sm text-slate-500">Không bắt buộc. Có thể ghi họ tên, chức vụ, đơn vị và thông tin liên hệ nếu người tham chiếu đã đồng ý.</p>
                 <textarea rows={2} value={referee} onChange={(e) => setReferee(e.target.value)} placeholder="Thông tin người tham chiếu (nếu có)..." className={inputClass} />
               </section>
@@ -458,7 +534,7 @@ export default function CVServicePage() {
               {/* 12. CONSENT */}
               <section className="space-y-4">
                 <h3 className="border-b border-sky-100 pb-3 text-lg font-extrabold text-sky-700">
-                  12. Xác nhận đồng ý chia sẻ CV{" "}
+                  13. Xác nhận đồng ý chia sẻ CV{" "}
                   <span className="text-sm font-normal text-slate-500">(Không bắt buộc)</span>
                 </h3>
                 <label className="flex items-start gap-3 rounded-2xl border border-sky-100 bg-sky-50/60 p-4 text-sm leading-6 text-slate-600">
