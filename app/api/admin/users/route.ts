@@ -33,7 +33,6 @@ async function verifyAdmin(request: NextRequest) {
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
   const anonKey =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -113,9 +112,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     const message =
-      error instanceof Error
-        ? error.message
-        : "Lỗi máy chủ.";
+      error instanceof Error ? error.message : "Lỗi máy chủ.";
 
     return NextResponse.json(
       { error: message },
@@ -141,15 +138,12 @@ export async function POST(request: NextRequest) {
     const fullName = String(body.full_name || "").trim();
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "");
-
-    const role =
-      body.role === "admin" ? "admin" : "recruiter";
+    const role = body.role === "admin" ? "admin" : "recruiter";
 
     if (!fullName || !email || !password) {
       return NextResponse.json(
         {
-          error:
-            "Vui lòng nhập đầy đủ họ tên, email và mật khẩu.",
+          error: "Vui lòng nhập đầy đủ họ tên, email và mật khẩu.",
         },
         { status: 400 }
       );
@@ -157,14 +151,11 @@ export async function POST(request: NextRequest) {
 
     if (password.length < 8) {
       return NextResponse.json(
-        {
-          error: "Mật khẩu phải có ít nhất 8 ký tự.",
-        },
+        { error: "Mật khẩu phải có ít nhất 8 ký tự." },
         { status: 400 }
       );
     }
 
-    // Tạo tài khoản trong Supabase Auth
     const { data: created, error: createError } =
       await auth.adminClient.auth.admin.createUser({
         email,
@@ -179,28 +170,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            createError?.message ||
-            "Không tạo được tài khoản.",
+            createError?.message || "Không tạo được tài khoản.",
         },
         { status: 400 }
       );
     }
 
-    // Lưu thông tin nhân viên vào bảng profiles
     const { error: profileError } = await auth.adminClient
       .from("profiles")
       .upsert(
         {
           id: created.user.id,
           full_name: fullName,
-          role: role,
+          role,
         },
         {
           onConflict: "id",
         }
       );
 
-    // Nếu lưu profiles thất bại thì xóa tài khoản vừa tạo
     if (profileError) {
       await auth.adminClient.auth.admin.deleteUser(
         created.user.id
@@ -221,18 +209,107 @@ export async function POST(request: NextRequest) {
         message: "Tạo tài khoản nhân viên thành công.",
         user: {
           id: created.user.id,
-          email: email,
+          email,
           full_name: fullName,
-          role: role,
+          role,
         },
       },
       { status: 201 }
     );
   } catch (error) {
     const message =
-      error instanceof Error
-        ? error.message
-        : "Lỗi máy chủ.";
+      error instanceof Error ? error.message : "Lỗi máy chủ.";
+
+    return NextResponse.json(
+      { error: message },
+      { status: 500 }
+    );
+  }
+}
+
+// Admin đổi mật khẩu tài khoản Recruiter
+export async function PATCH(request: NextRequest) {
+  try {
+    const auth = await verifyAdmin(request);
+
+    if ("error" in auth) {
+      return NextResponse.json(
+        { error: auth.error },
+        { status: auth.status }
+      );
+    }
+
+    const body = await request.json();
+
+    const userId = String(body.user_id || "").trim();
+    const newPassword = String(body.new_password || "");
+
+    if (!userId || !newPassword) {
+      return NextResponse.json(
+        {
+          error: "Vui lòng cung cấp tài khoản và mật khẩu mới.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (newPassword.length < 8) {
+      return NextResponse.json(
+        {
+          error: "Mật khẩu mới phải có ít nhất 8 ký tự.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { data: targetUser, error: targetError } =
+      await auth.adminClient
+        .from("profiles")
+        .select("id, role")
+        .eq("id", userId)
+        .maybeSingle();
+
+    if (targetError || !targetUser) {
+      return NextResponse.json(
+        { error: "Không tìm thấy tài khoản nhân viên." },
+        { status: 404 }
+      );
+    }
+
+    if (targetUser.role !== "recruiter") {
+      return NextResponse.json(
+        {
+          error: "Chỉ được đổi mật khẩu tài khoản Recruiter.",
+        },
+        { status: 403 }
+      );
+    }
+
+    const { error: updateError } =
+      await auth.adminClient.auth.admin.updateUserById(
+        userId,
+        { password: newPassword }
+      );
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: updateError.message },
+        { status: 400 }
+      );
+    }
+
+    console.log(
+      "[CVISION] Admin changed recruiter password:",
+      userId
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: "Đổi mật khẩu nhân viên thành công.",
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Lỗi máy chủ.";
 
     return NextResponse.json(
       { error: message },
