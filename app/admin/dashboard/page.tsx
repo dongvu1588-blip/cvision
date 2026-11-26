@@ -38,7 +38,7 @@ type Job = {
 const menu = [
   { icon: "▦", name: "Dashboard", href: "/admin/dashboard" },
   { icon: "♟", name: "Ứng viên", href: "/admin/candidates" },
-  { icon: "▤", name: "Quản lý công việc", href: "/admin/tasks" },
+  { icon: "▤", name: "Quản lý công việc", href: "/admin/jobs" },
   { icon: "✉", name: "Dịch vụ CV", href: "/admin/cv-requests" },
   { icon: "▣", name: "Quản lý CV", href: "/admin/cv-management" },
   { icon: "▧", name: "Báo cáo", href: "/admin/reports" },
