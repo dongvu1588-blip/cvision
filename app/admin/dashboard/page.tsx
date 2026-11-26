@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -12,193 +12,183 @@ type Profile = {
   role: string | null;
 };
 
-type Application = {
+type ManagedCV = {
   id: string;
-  candidate_id: string | null;
-  assigned_to: string | null;
-  stage: string;
-  candidates: { full_name: string } | null;
-  jobs: {
-    title: string;
-    companies: { name: string } | null;
-  } | null;
+  candidate_name: string;
+  uploaded_by: string;
+  status: string;
+  created_at: string;
+};
+
+type CVRequest = {
+  id: string;
+  full_name: string;
+  service_type: string | null;
+  status: string;
+  created_at: string;
+};
+
+type Job = {
+  id: string;
+  title: string;
+  status: string;
+  created_at?: string;
 };
 
 const menu = [
   { icon: "▦", name: "Dashboard", href: "/admin/dashboard" },
-  { icon: "♙", name: "Ứng viên", href: "/admin/candidates" },
-  { icon: "▤", name: "Quản lý công việc", href: "/admin/jobs" },
-  { icon: "▥", name: "Tiến độ tuyển dụng", href: "/admin/pipeline" },
-  { icon: "✉", name: "Dịch vụ CV", href: "/admin/cv-requests" },
+  { icon: "✉", name: "Đơn hàng CV", href: "/admin/cv-requests" },
   { icon: "▣", name: "Quản lý CV", href: "/admin/cv-management" },
+  { icon: "▤", name: "Quản lý Job", href: "/admin/jobs" },
+  { icon: "♙", name: "Quản lý nhân viên", href: "/admin/users" },
   { icon: "◈", name: "Quản lý tài chính", href: "/admin/finance" },
 ];
 
-const stages = [
-  {
-    name: "Nộp CV",
-    color: "bg-sky-500",
-    light: "bg-sky-50",
-    text: "text-sky-700",
-  },
-  {
-    name: "Hẹn phỏng vấn",
-    color: "bg-blue-500",
-    light: "bg-blue-50",
-    text: "text-blue-700",
-  },
-  {
-    name: "Phỏng vấn",
-    color: "bg-indigo-500",
-    light: "bg-indigo-50",
-    text: "text-indigo-700",
-  },
-  {
-    name: "Đàm phán lương",
-    color: "bg-violet-500",
-    light: "bg-violet-50",
-    text: "text-violet-700",
-  },
-  {
-    name: "Nhận Offer",
-    color: "bg-emerald-500",
-    light: "bg-emerald-50",
-    text: "text-emerald-700",
-  },
-  {
-    name: "Đi làm",
-    color: "bg-teal-500",
-    light: "bg-teal-50",
-    text: "text-teal-700",
-  },
+const orderStatuses = [
+  "Mới tiếp nhận",
+  "Đang liên hệ",
+  "Đang xử lý",
+  "Hoàn thành",
+  "Đã hủy",
 ];
 
-function percentage(value: number, total: number) {
-  if (!total) return 0;
-  return Math.round((value / total) * 100);
+const jobStatuses = ["Đang tuyển", "Tạm dừng", "Đã đóng"];
+
+function formatNumber(value: number) {
+  return value.toLocaleString("vi-VN");
+}
+
+function formatDate(value: string) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString("vi-VN");
 }
 
 export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [applications, setApplications] = useState<Application[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [currentUserId, setCurrentUserId] = useState("");
-  const [currentRole, setCurrentRole] = useState("");
-  const [currentName, setCurrentName] = useState("");
-  const [search, setSearch] = useState("");
+  const [managedCVs, setManagedCVs] = useState<ManagedCV[]>([]);
+  const [cvRequests, setCVRequests] = useState<CVRequest[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [todayLabel, setTodayLabel] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const isAdmin = currentRole === "admin";
+  const isAdmin = profile?.role === "admin";
 
-  // Lấy ngày hiện tại sau khi component được tải ở trình duyệt.
-  // Cách này tránh lỗi blocking-prerender-current-time của Next.js.
-  useEffect(() => {
-    setTodayLabel(
-      new Intl.DateTimeFormat("vi-VN", {
-        weekday: "long",
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      }).format(new Date())
-    );
-  }, []);
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    setErrorMessage("");
 
-  // Tải dữ liệu Dashboard từ Supabase.
-  useEffect(() => {
-    let active = true;
-
-    async function loadDashboard() {
-      setLoading(true);
-      setErrorMessage("");
-
+    try {
+      // 1. Kiểm tra đăng nhập
       const {
         data: { user },
-        error: userError,
+        error: authError,
       } = await supabase.auth.getUser();
 
-      if (!active) return;
-
-      if (userError || !user) {
+      if (authError || !user) {
         router.replace("/admin/login");
         return;
       }
 
-      setCurrentUserId(user.id);
-
-      const { data: profile, error: profileError } = await supabase
+      // 2. Lấy thông tin tài khoản
+      const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("id, full_name, role")
         .eq("id", user.id)
         .single();
 
-      if (!active) return;
-
-      if (profileError || !profile) {
+      if (profileError || !profileData) {
         setErrorMessage(
-          "Không tìm thấy thông tin tài khoản trong profiles."
+          "Không tìm thấy thông tin tài khoản: " +
+            (profileError?.message || "")
         );
-        setLoading(false);
         return;
       }
 
-      setCurrentRole(profile.role || "recruiter");
-      setCurrentName(profile.full_name || user.email || "Nhân viên");
+      setProfile(profileData as Profile);
 
-      const { data: profileData, error: profilesError } = await supabase
+      // 3. Lấy danh sách nhân viên
+      const profileResult = await supabase
         .from("profiles")
         .select("id, full_name, role")
         .in("role", ["admin", "recruiter"])
         .order("full_name");
 
-      if (!active) return;
-
-      if (profilesError) {
-        setErrorMessage(profilesError.message);
-        setLoading(false);
-        return;
-      }
-
-      setProfiles(profileData || []);
-
-      const { data: applicationData, error: applicationError } =
-        await supabase
-          .from("applications")
-          .select(`
-            id,
-            candidate_id,
-            assigned_to,
-            stage,
-            candidates(full_name),
-            jobs(title, companies(name))
-          `)
-          .order("created_at", { ascending: false });
-
-      if (!active) return;
-
-      if (applicationError) {
-        setErrorMessage(applicationError.message);
-      } else {
-        setApplications(
-          (applicationData || []) as unknown as Application[]
+      if (profileResult.error) {
+        throw new Error(
+          "Không tải được nhân viên: " + profileResult.error.message
         );
       }
 
+      setProfiles((profileResult.data || []) as Profile[]);
+
+      // 4. Lấy dữ liệu CV đã tải lên
+      const cvResult = await supabase
+        .from("managed_cvs")
+        .select("id, candidate_name, uploaded_by, status, created_at")
+        .order("created_at", { ascending: false });
+
+      if (cvResult.error) {
+        throw new Error(
+          "Không tải được dữ liệu CV: " + cvResult.error.message
+        );
+      }
+
+      setManagedCVs((cvResult.data || []) as ManagedCV[]);
+
+      // 5. Lấy dữ liệu đơn hàng CV
+      const requestResult = await supabase
+        .from("cv_requests")
+        .select("id, full_name, service_type, status, created_at")
+        .order("created_at", { ascending: false });
+
+      if (requestResult.error) {
+        throw new Error(
+          "Không tải được đơn hàng CV: " +
+            requestResult.error.message
+        );
+      }
+
+      setCVRequests((requestResult.data || []) as CVRequest[]);
+
+      // 6. Lấy dữ liệu Job
+      const jobResult = await supabase
+        .from("jobs")
+        .select("id, title, status, created_at")
+        .order("created_at", { ascending: false });
+
+      if (jobResult.error) {
+        throw new Error(
+          "Không tải được dữ liệu Job: " + jobResult.error.message
+        );
+      }
+
+      setJobs((jobResult.data || []) as Job[]);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Đã xảy ra lỗi khi tải Dashboard."
+      );
+    } finally {
       setLoading(false);
     }
-
-    loadDashboard();
-
-    return () => {
-      active = false;
-    };
   }, [router]);
 
-  // Đăng xuất.
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
   async function handleLogout() {
     const { error } = await supabase.auth.signOut();
 
@@ -210,149 +200,143 @@ export default function Dashboard() {
     router.replace("/admin/login");
   }
 
-  // Phân quyền dữ liệu hiển thị.
-  const visibleApplications = useMemo(() => {
-    return isAdmin
-      ? applications
-      : applications.filter(
-          (application) => application.assigned_to === currentUserId
+  // Thống kê CV
+  const approvedCVs = managedCVs.filter(
+    (cv) => cv.status === "Được duyệt"
+  );
+
+  const rejectedCVs = managedCVs.filter(
+    (cv) => cv.status === "NG"
+  );
+
+  const pendingCVs = managedCVs.filter(
+    (cv) =>
+      cv.status !== "Được duyệt" &&
+      cv.status !== "NG"
+  );
+
+  // Thống kê đơn hàng CV
+  const completedOrders = cvRequests.filter(
+    (item) => item.status === "Hoàn thành"
+  );
+
+  const processingOrders = cvRequests.filter(
+    (item) => item.status === "Đang xử lý"
+  );
+
+  const newOrders = cvRequests.filter(
+    (item) =>
+      item.status === "Mới tiếp nhận" ||
+      item.status === "Đang liên hệ"
+  );
+
+  const cancelledOrders = cvRequests.filter(
+    (item) => item.status === "Đã hủy"
+  );
+
+  // Thống kê Job
+  const activeJobs = jobs.filter(
+    (job) => job.status === "Đang tuyển"
+  );
+
+  const pausedJobs = jobs.filter(
+    (job) => job.status === "Tạm dừng"
+  );
+
+  const closedJobs = jobs.filter(
+    (job) => job.status === "Đã đóng"
+  );
+
+  // Hiệu suất nhân viên dựa trên người tải CV lên
+  const employeeStats = useMemo(() => {
+    return profiles
+      .filter((employee) => employee.role === "recruiter")
+      .map((employee) => {
+        const employeeCVs = managedCVs.filter(
+          (cv) => cv.uploaded_by === employee.id
         );
-  }, [applications, currentUserId, isAdmin]);
 
-  // Tìm kiếm hồ sơ.
-  const filtered = useMemo(() => {
-    return visibleApplications.filter((application) => {
-      const name = application.candidates?.full_name || "";
-      const job = application.jobs?.title || "";
-      const company = application.jobs?.companies?.name || "";
+        const approved = employeeCVs.filter(
+          (cv) => cv.status === "Được duyệt"
+        ).length;
 
-      return `${name} ${job} ${company}`
-        .toLocaleLowerCase("vi-VN")
-        .includes(search.toLocaleLowerCase("vi-VN"));
-    });
-  }, [visibleApplications, search]);
+        const rejected = employeeCVs.filter(
+          (cv) => cv.status === "NG"
+        ).length;
 
-  // Các chỉ số tổng quan.
-  const totalCandidates = new Set(
-    visibleApplications
-      .map((application) => application.candidate_id)
-      .filter(Boolean)
-  ).size;
+        const pending = employeeCVs.length - approved - rejected;
 
-  const totalApplications = visibleApplications.length;
+        const approvalRate =
+          employeeCVs.length > 0
+            ? Math.round((approved / employeeCVs.length) * 100)
+            : 0;
 
-  const offerCount = visibleApplications.filter(
-    (application) => application.stage === "Nhận Offer"
-  ).length;
+        return {
+          ...employee,
+          total: employeeCVs.length,
+          approved,
+          rejected,
+          pending,
+          approvalRate,
+        };
+      })
+      .sort((a, b) => b.approved - a.approved);
+  }, [profiles, managedCVs]);
 
-  const onboardCount = visibleApplications.filter(
-    (application) => application.stage === "Đi làm"
-  ).length;
+  const visibleEmployeeStats = isAdmin
+    ? employeeStats
+    : employeeStats.filter(
+        (employee) => employee.id === profile?.id
+      );
 
-  const interviewCount = visibleApplications.filter(
-    (application) =>
-      application.stage === "Hẹn phỏng vấn" ||
-      application.stage === "Phỏng vấn"
-  ).length;
+  const visibleCVs = isAdmin
+    ? managedCVs
+    : managedCVs.filter(
+        (cv) => cv.uploaded_by === profile?.id
+      );
 
-  const negotiationCount = visibleApplications.filter(
-    (application) => application.stage === "Đàm phán lương"
-  ).length;
+  const visibleRequests = isAdmin
+    ? cvRequests
+    : cvRequests;
+
+  const visibleJobs = jobs;
 
   const stats = [
     {
-      title: "Ứng viên phụ trách",
-      value: totalCandidates,
-      note: "Ứng viên có hồ sơ tuyển dụng",
-      icon: "♙",
+      title: "Tổng số CV",
+      value: visibleCVs.length,
+      note: `${visibleCVs.filter((cv) => cv.status === "Được duyệt").length} CV đã được duyệt`,
+      icon: "▣",
       color: "text-blue-600",
-      background: "bg-blue-50",
-      label: "Ứng viên",
+      bg: "bg-blue-50",
     },
     {
-      title: "Tổng hồ sơ tuyển dụng",
-      value: totalApplications,
-      note: "Lượt ứng tuyển được giao",
-      icon: "▤",
-      color: "text-violet-600",
-      background: "bg-violet-50",
-      label: "Hồ sơ",
-    },
-    {
-      title: "Đã nhận Offer",
-      value: offerCount,
-      note: "Ứng viên nhận Offer",
+      title: "Đơn hàng CV",
+      value: visibleRequests.length,
+      note: `${completedOrders.length} đơn đã hoàn thành`,
       icon: "✉",
-      color: "text-emerald-600",
-      background: "bg-emerald-50",
-      label: "Offer",
+      color: "text-violet-600",
+      bg: "bg-violet-50",
     },
     {
-      title: "Đã đi làm",
-      value: onboardCount,
-      note: "Ứng viên đã onboard",
+      title: "Tổng số Job",
+      value: visibleJobs.length,
+      note: `${activeJobs.length} Job đang hoạt động`,
+      icon: "▤",
+      color: "text-emerald-600",
+      bg: "bg-emerald-50",
+    },
+    {
+      title: "CV được duyệt",
+      value: isAdmin
+        ? approvedCVs.length
+        : visibleCVs.filter((cv) => cv.status === "Được duyệt").length,
+      note: "CV đạt yêu cầu quản lý",
       icon: "✓",
       color: "text-teal-600",
-      background: "bg-teal-50",
-      label: "Onboard",
+      bg: "bg-teal-50",
     },
   ];
-
-  // Thống kê từng giai đoạn.
-  const stageCounts = stages.map((stage) => ({
-    ...stage,
-    count: visibleApplications.filter(
-      (application) => application.stage === stage.name
-    ).length,
-  }));
-
-  const maxStageCount = Math.max(
-    1,
-    ...stageCounts.map((stage) => stage.count)
-  );
-
-  const conversionRate = percentage(
-    onboardCount,
-    totalApplications
-  );
-
-  // Hiệu suất nhân viên chỉ dành cho Admin.
-  const recruiterStats = profiles
-    .filter((profile) => profile.role === "recruiter")
-    .map((profile) => {
-      const assigned = applications.filter(
-        (application) => application.assigned_to === profile.id
-      );
-
-      const interview = assigned.filter(
-        (application) =>
-          application.stage === "Hẹn phỏng vấn" ||
-          application.stage === "Phỏng vấn"
-      ).length;
-
-      const negotiation = assigned.filter(
-        (application) => application.stage === "Đàm phán lương"
-      ).length;
-
-      const offer = assigned.filter(
-        (application) => application.stage === "Nhận Offer"
-      ).length;
-
-      const onboard = assigned.filter(
-        (application) => application.stage === "Đi làm"
-      ).length;
-
-      return {
-        ...profile,
-        total: assigned.length,
-        interview,
-        negotiation,
-        offer,
-        onboard,
-        offerRate: percentage(offer, assigned.length),
-        onboardRate: percentage(onboard, assigned.length),
-      };
-    });
 
   return (
     <div className="min-h-screen bg-[#f4f7fb] text-slate-800">
@@ -362,17 +346,15 @@ export default function Dashboard() {
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-xl font-black text-white">
             C
           </span>
-          <span className="text-xl font-black tracking-tight text-slate-900">
+          <span className="text-xl font-black text-slate-900">
             CVISION
           </span>
         </Link>
 
         <button
           type="button"
-          onClick={() => setMobileMenuOpen((open) => !open)}
+          onClick={() => setMobileMenuOpen((value) => !value)}
           className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl"
-          aria-label="Mở menu"
-          aria-expanded={mobileMenuOpen}
         >
           {mobileMenuOpen ? "×" : "☰"}
         </button>
@@ -393,7 +375,7 @@ export default function Dashboard() {
               <div>
                 <p className="text-2xl font-black">CVISION</p>
                 <p className="mt-1 text-[10px] font-bold tracking-[0.2em] text-blue-300">
-                  ADMIN WORKSPACE
+                  BUSINESS WORKSPACE
                 </p>
               </div>
 
@@ -401,7 +383,6 @@ export default function Dashboard() {
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
                 className="text-2xl text-slate-300"
-                aria-label="Đóng menu"
               >
                 ×
               </button>
@@ -425,26 +406,11 @@ export default function Dashboard() {
                   {item.name}
                 </Link>
               ))}
-
-              {isAdmin && (
-                <Link
-                  href="/admin/users"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                    pathname === "/admin/users"
-                      ? "bg-blue-600 text-white"
-                      : "text-slate-300 hover:bg-white/10"
-                  }`}
-                >
-                  <span className="w-6 text-center text-lg">♙</span>
-                  Quản lý nhân viên
-                </Link>
-              )}
             </nav>
 
             <div className="mt-auto border-t border-white/10 pt-5">
               <p className="mb-3 text-sm font-semibold">
-                {currentName || "Tài khoản"}
+                {profile?.full_name || "Tài khoản"}
               </p>
               <button
                 type="button"
@@ -462,7 +428,7 @@ export default function Dashboard() {
         {/* DESKTOP SIDEBAR */}
         <aside className="fixed inset-y-0 left-0 z-30 hidden w-[250px] flex-col bg-[#111c35] px-5 py-7 text-white lg:flex">
           <Link href="/" className="mb-12 flex items-center gap-3 px-2">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-xl font-black shadow-lg shadow-blue-950/30">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-xl font-black">
               C
             </div>
 
@@ -471,7 +437,7 @@ export default function Dashboard() {
                 CVISION
               </p>
               <p className="mt-0.5 text-[9px] font-bold tracking-[0.22em] text-blue-300">
-                ADMIN WORKSPACE
+                BUSINESS WORKSPACE
               </p>
             </div>
           </Link>
@@ -481,42 +447,22 @@ export default function Dashboard() {
           </p>
 
           <nav className="space-y-2">
-            {menu.map((item) => {
-              const active = pathname === item.href;
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`group flex items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-semibold transition ${
-                    active
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
-                      : "text-slate-300 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-lg">
-                    {item.icon}
-                  </span>
-                  {item.name}
-                </Link>
-              );
-            })}
-
-            {isAdmin && (
+            {menu.map((item) => (
               <Link
-                href="/admin/users"
+                key={item.href}
+                href={item.href}
                 className={`flex items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-semibold transition ${
-                  pathname === "/admin/users"
-                    ? "bg-blue-600 text-white"
+                  pathname === item.href
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
                     : "text-slate-300 hover:bg-white/10 hover:text-white"
                 }`}
               >
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-lg">
-                  ♙
+                  {item.icon}
                 </span>
-                Quản lý nhân viên
+                {item.name}
               </Link>
-            )}
+            ))}
           </nav>
 
           <div className="mt-auto rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -525,21 +471,21 @@ export default function Dashboard() {
             </div>
             <p className="font-bold">CVISION Workspace</p>
             <p className="mt-2 text-xs leading-5 text-slate-400">
-              Nền tảng quản lý hoạt động và kết nối cơ hội nghề nghiệp.
+              Quản trị dịch vụ CV và hoạt động kinh doanh.
             </p>
           </div>
 
           <div className="mt-5 flex items-center gap-3 border-t border-white/10 pt-5">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 font-bold">
-              {currentName.charAt(0).toUpperCase() || "C"}
+              {(profile?.full_name || "C").charAt(0).toUpperCase()}
             </div>
 
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold">
-                {currentName || "Tài khoản"}
+                {profile?.full_name || "Tài khoản"}
               </p>
               <p className="text-xs text-slate-400">
-                {isAdmin ? "Quản trị viên" : "Recruiter"}
+                {isAdmin ? "Quản trị viên" : "Nhân viên"}
               </p>
             </div>
 
@@ -566,26 +512,26 @@ export default function Dashboard() {
               </div>
 
               <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-                Tổng quan hoạt động
+                Tổng quan kinh doanh
               </h1>
 
               <p className="mt-2 text-sm text-slate-500">
-                Xin chào, {currentName || "bạn"}! Chúc bạn một ngày làm việc hiệu quả.
+                Theo dõi hiệu suất nhân viên, CV, đơn hàng và Job của CVISION.
               </p>
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="hidden rounded-xl border border-slate-200 bg-white px-4 py-3 text-right shadow-sm sm:block">
-                <p className="text-xs font-semibold text-slate-400">
-                  Hôm nay
-                </p>
-                <p className="mt-1 text-sm font-bold capitalize text-slate-700">
-                  {todayLabel || "Đang cập nhật..."}
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={loadDashboard}
+                disabled={loading}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                ↻ Làm mới
+              </button>
 
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-lg font-black text-white shadow-lg shadow-blue-100">
-                {currentName.charAt(0).toUpperCase() || "C"}
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-lg font-black text-white">
+                {(profile?.full_name || "C").charAt(0).toUpperCase()}
               </div>
             </div>
           </header>
@@ -593,16 +539,16 @@ export default function Dashboard() {
           {/* ERROR */}
           {errorMessage && (
             <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              Không tải được dữ liệu: {errorMessage}
+              {errorMessage}
             </div>
           )}
 
-          {/* KPI CARDS */}
+          {/* MAIN STATISTICS */}
           <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {stats.map((item) => (
               <div
                 key={item.title}
-                className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-200/60"
+                className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
               >
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-slate-500">
@@ -610,21 +556,15 @@ export default function Dashboard() {
                   </p>
 
                   <div
-                    className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${item.background} ${item.color}`}
+                    className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${item.bg} ${item.color}`}
                   >
                     {item.icon}
                   </div>
                 </div>
 
-                <div className="mt-5 flex items-end justify-between">
-                  <h2 className="text-3xl font-black tracking-tight text-slate-900">
-                    {loading ? "..." : item.value.toLocaleString("vi-VN")}
-                  </h2>
-
-                  <span className="rounded-lg bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-400">
-                    {item.label}
-                  </span>
-                </div>
+                <h2 className="mt-5 text-3xl font-black tracking-tight text-slate-900">
+                  {loading ? "..." : formatNumber(item.value)}
+                </h2>
 
                 <p className="mt-2 text-xs text-slate-400">
                   {item.note}
@@ -633,392 +573,463 @@ export default function Dashboard() {
             ))}
           </section>
 
-          {/* ANALYTICS */}
-          <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
-            {/* RECRUITMENT PIPELINE */}
-            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6 xl:col-span-2">
-              <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
-                    Recruitment Analytics
-                  </p>
+          {/* EMPLOYEE PERFORMANCE */}
+          <section className="mb-8 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                  Team Performance
+                </p>
 
-                  <h2 className="mt-2 text-xl font-black text-slate-900">
-                    Tiến độ tuyển dụng
-                  </h2>
+                <h2 className="mt-2 text-xl font-black text-slate-900">
+                  Hiệu suất nhân viên
+                </h2>
 
-                  <p className="mt-1 text-sm text-slate-400">
-                    Phân bổ hồ sơ theo từng giai đoạn tuyển dụng
-                  </p>
-                </div>
-
-                <Link
-                  href="/admin/pipeline"
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
-                >
-                  Xem chi tiết →
-                </Link>
+                <p className="mt-1 text-sm text-slate-400">
+                  Thống kê số CV mỗi nhân viên đã tải lên và kết quả duyệt.
+                </p>
               </div>
 
-              <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {stageCounts.map((stage) => (
-                  <div
-                    key={stage.name}
-                    className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"
-                  >
-                    <div className={`mb-3 h-1.5 rounded-full ${stage.color}`} />
-
-                    <p className="text-xs font-semibold text-slate-500">
-                      {stage.name}
-                    </p>
-
-                    <p className="mt-1 text-2xl font-black text-slate-900">
-                      {loading ? "..." : stage.count}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="border-t border-slate-100 pt-6">
-                <h3 className="mb-5 text-sm font-bold text-slate-700">
-                  Biểu đồ số lượng hồ sơ
-                </h3>
-
-                <div className="space-y-5">
-                  {stageCounts.map((stage) => (
-                    <div
-                      key={`bar-${stage.name}`}
-                      className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[125px_1fr_35px]"
-                    >
-                      <span className="text-xs font-semibold text-slate-500">
-                        {stage.name}
-                      </span>
-
-                      <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className={`h-full rounded-full transition-all duration-700 ${stage.color}`}
-                          style={{
-                            width: `${(stage.count / maxStageCount) * 100}%`,
-                          }}
-                        />
-                      </div>
-
-                      <span className="text-right text-sm font-bold tabular-nums text-slate-700">
-                        {loading ? "..." : stage.count}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* CONVERSION SUMMARY */}
-            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
-              <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
-                Performance
-              </p>
-
-              <h2 className="mt-2 text-xl font-black text-slate-900">
-                Hiệu quả tuyển dụng
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-400">
-                Kết quả chuyển đổi hồ sơ
-              </p>
-
-              <div className="my-8 flex flex-col items-center">
-                <div
-                  className="relative flex h-44 w-44 items-center justify-center rounded-full"
-                  style={{
-                    background: `conic-gradient(#2563eb ${conversionRate * 3.6}deg, #eaf0f8 0deg)`,
-                  }}
-                >
-                  <div className="flex h-36 w-36 flex-col items-center justify-center rounded-full bg-white">
-                    <span className="text-4xl font-black text-slate-900">
-                      {loading ? "..." : `${conversionRate}%`}
-                    </span>
-
-                    <span className="mt-1 text-xs font-medium text-slate-400">
-                      Tỷ lệ đi làm
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-                    <span className="text-sm text-slate-500">
-                      Phỏng vấn
-                    </span>
-                  </div>
-
-                  <span className="font-bold text-slate-800">
-                    {loading ? "..." : interviewCount}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-violet-500" />
-                    <span className="text-sm text-slate-500">
-                      Đàm phán
-                    </span>
-                  </div>
-
-                  <span className="font-bold text-slate-800">
-                    {loading ? "..." : negotiationCount}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                    <span className="text-sm text-slate-500">
-                      Nhận Offer
-                    </span>
-                  </div>
-
-                  <span className="font-bold text-slate-800">
-                    {loading ? "..." : offerCount}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-teal-500" />
-                    <span className="text-sm text-slate-500">
-                      Đã đi làm
-                    </span>
-                  </div>
-
-                  <span className="font-bold text-slate-800">
-                    {loading ? "..." : onboardCount}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* RECRUITER PERFORMANCE */}
-          {isAdmin && (
-            <section className="mb-8 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
-              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
-                    Team Performance
-                  </p>
-
-                  <h2 className="mt-2 text-xl font-black text-slate-900">
-                    Hiệu suất nhân viên
-                  </h2>
-
-                  <p className="mt-1 text-sm text-slate-400">
-                    Theo dõi kết quả công việc của từng Recruiter
-                  </p>
-                </div>
-
+              {isAdmin && (
                 <Link
                   href="/admin/users"
                   className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-blue-50 hover:text-blue-600"
                 >
                   Quản lý nhân viên →
                 </Link>
-              </div>
+              )}
+            </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[780px] text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                      <th className="rounded-l-lg px-4 py-4 font-bold">
-                        Nhân viên
-                      </th>
-                      <th className="px-4 py-4 font-bold">
-                        Hồ sơ được giao
-                      </th>
-                      <th className="px-4 py-4 font-bold">Phỏng vấn</th>
-                      <th className="px-4 py-4 font-bold">Đàm phán</th>
-                      <th className="px-4 py-4 font-bold">Offer</th>
-                      <th className="px-4 py-4 font-bold">Đi làm</th>
-                      <th className="px-4 py-4 font-bold">Tỷ lệ Offer</th>
-                      <th className="rounded-r-lg px-4 py-4 font-bold">
-                        Tỷ lệ đi làm
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {recruiterStats.map((recruiter) => (
-                      <tr
-                        key={recruiter.id}
-                        className="border-b border-slate-50 transition hover:bg-slate-50"
-                      >
-                        <td className="px-4 py-4 font-semibold text-slate-800">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 font-bold text-blue-600">
-                              {(recruiter.full_name || "R")
-                                .charAt(0)
-                                .toUpperCase()}
-                            </div>
-
-                            {recruiter.full_name || "Chưa đặt tên"}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 font-semibold">
-                          {recruiter.total}
-                        </td>
-
-                        <td className="px-4 py-4">
-                          {recruiter.interview}
-                        </td>
-
-                        <td className="px-4 py-4">
-                          {recruiter.negotiation}
-                        </td>
-
-                        <td className="px-4 py-4 font-semibold text-emerald-600">
-                          {recruiter.offer}
-                        </td>
-
-                        <td className="px-4 py-4 font-semibold text-teal-600">
-                          {recruiter.onboard}
-                        </td>
-
-                        <td className="px-4 py-4 font-semibold text-blue-600">
-                          {recruiter.offerRate}%
-                        </td>
-
-                        <td className="px-4 py-4 font-semibold text-teal-600">
-                          {recruiter.onboardRate}%
-                        </td>
-                      </tr>
-                    ))}
-
-                    {recruiterStats.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="px-4 py-10 text-center text-slate-400"
-                        >
-                          Chưa có tài khoản Recruiter.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <p className="mt-4 text-xs text-slate-400">
-                Tỷ lệ được tính trên tổng số hồ sơ đang được phân công cho từng Recruiter.
-              </p>
-            </section>
-          )}
-
-          {/* RECENT APPLICATIONS */}
-          <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
-                  Recent Applications
+            <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-xl bg-blue-50 p-4">
+                <p className="text-xs font-semibold text-blue-600">
+                  Tổng CV đã tải lên
                 </p>
-
-                <h2 className="mt-2 text-xl font-black text-slate-900">
-                  Hồ sơ tuyển dụng gần đây
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-400">
-                  {isAdmin
-                    ? "Danh sách hồ sơ toàn hệ thống."
-                    : "Danh sách hồ sơ được phân công cho bạn."}
+                <p className="mt-2 text-2xl font-black text-blue-800">
+                  {loading ? "..." : formatNumber(visibleCVs.length)}
                 </p>
               </div>
 
-              <div className="relative w-full sm:w-72">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                  ⌕
-                </span>
+              <div className="rounded-xl bg-emerald-50 p-4">
+                <p className="text-xs font-semibold text-emerald-600">
+                  CV được duyệt
+                </p>
+                <p className="mt-2 text-2xl font-black text-emerald-700">
+                  {loading
+                    ? "..."
+                    : formatNumber(
+                        visibleCVs.filter(
+                          (cv) => cv.status === "Được duyệt"
+                        ).length
+                      )}
+                </p>
+              </div>
 
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Tìm ứng viên, vị trí, công ty..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
-                />
+              <div className="rounded-xl bg-amber-50 p-4">
+                <p className="text-xs font-semibold text-amber-600">
+                  CV đang chờ xử lý
+                </p>
+                <p className="mt-2 text-2xl font-black text-amber-700">
+                  {loading
+                    ? "..."
+                    : formatNumber(
+                        visibleCVs.filter(
+                          (cv) =>
+                            cv.status !== "Được duyệt" &&
+                            cv.status !== "NG"
+                        ).length
+                      )}
+                </p>
               </div>
             </div>
 
-            {loading ? (
-              <div className="py-12 text-center">
-                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" />
-                <p className="mt-3 text-sm text-slate-400">
-                  Đang tải dữ liệu...
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <th className="px-4 py-4 font-bold">Nhân viên</th>
+                    <th className="px-4 py-4 font-bold">Tổng CV</th>
+                    <th className="px-4 py-4 font-bold">Được duyệt</th>
+                    <th className="px-4 py-4 font-bold">NG</th>
+                    <th className="px-4 py-4 font-bold">Chờ xử lý</th>
+                    <th className="px-4 py-4 font-bold">Tỷ lệ duyệt</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {visibleEmployeeStats.map((employee) => (
+                    <tr
+                      key={employee.id}
+                      className="border-b border-slate-50 transition hover:bg-slate-50"
+                    >
+                      <td className="px-4 py-4 font-semibold text-slate-800">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 font-bold text-blue-600">
+                            {(employee.full_name || "N")
+                              .charAt(0)
+                              .toUpperCase()}
+                          </div>
+                          {employee.full_name || "Chưa đặt tên"}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-4 font-bold">
+                        {employee.total}
+                      </td>
+
+                      <td className="px-4 py-4 font-bold text-emerald-600">
+                        {employee.approved}
+                      </td>
+
+                      <td className="px-4 py-4 font-bold text-red-500">
+                        {employee.rejected}
+                      </td>
+
+                      <td className="px-4 py-4 font-bold text-amber-600">
+                        {employee.pending}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-20 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full bg-emerald-500"
+                              style={{
+                                width: `${employee.approvalRate}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="font-bold text-emerald-700">
+                            {employee.approvalRate}%
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {!loading && visibleEmployeeStats.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-4 py-10 text-center text-slate-400"
+                      >
+                        Chưa có dữ liệu nhân viên.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* CV STATUS AND ORDER STATUS */}
+          <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
+            {/* CV MANAGEMENT */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+              <div className="mb-6 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                    CV Management
+                  </p>
+                  <h2 className="mt-2 text-xl font-black text-slate-900">
+                    Tình trạng CV
+                  </h2>
+                </div>
+
+                <Link
+                  href="/admin/cv-management"
+                  className="text-xs font-bold text-blue-600 hover:underline"
+                >
+                  Chi tiết →
+                </Link>
+              </div>
+
+              <div className="space-y-5">
+                {[
+                  {
+                    label: "Được duyệt",
+                    value: isAdmin
+                      ? approvedCVs.length
+                      : visibleCVs.filter(
+                          (cv) => cv.status === "Được duyệt"
+                        ).length,
+                    color: "bg-emerald-500",
+                    text: "text-emerald-700",
+                  },
+                  {
+                    label: "Đang chờ xử lý",
+                    value: isAdmin
+                      ? pendingCVs.length
+                      : visibleCVs.filter(
+                          (cv) =>
+                            cv.status !== "Được duyệt" &&
+                            cv.status !== "NG"
+                        ).length,
+                    color: "bg-amber-500",
+                    text: "text-amber-700",
+                  },
+                  {
+                    label: "NG",
+                    value: isAdmin
+                      ? rejectedCVs.length
+                      : visibleCVs.filter(
+                          (cv) => cv.status === "NG"
+                        ).length,
+                    color: "bg-red-500",
+                    text: "text-red-600",
+                  },
+                ].map((item) => {
+                  const total = isAdmin
+                    ? managedCVs.length
+                    : visibleCVs.length;
+
+                  const width =
+                    total > 0 ? (item.value / total) * 100 : 0;
+
+                  return (
+                    <div key={item.label}>
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-sm font-semibold text-slate-600">
+                          {item.label}
+                        </span>
+                        <span className={`font-bold ${item.text}`}>
+                          {loading ? "..." : item.value}
+                        </span>
+                      </div>
+
+                      <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className={`h-full rounded-full ${item.color}`}
+                          style={{ width: `${width}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* CV ORDERS */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+              <div className="mb-6 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-violet-600">
+                    CV Orders
+                  </p>
+                  <h2 className="mt-2 text-xl font-black text-slate-900">
+                    Tình trạng đơn hàng CV
+                  </h2>
+                </div>
+
+                <Link
+                  href="/admin/cv-requests"
+                  className="text-xs font-bold text-violet-600 hover:underline"
+                >
+                  Chi tiết →
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  {
+                    label: "Tổng đơn hàng",
+                    value: visibleRequests.length,
+                    bg: "bg-slate-50",
+                    color: "text-slate-800",
+                  },
+                  {
+                    label: "Mới tiếp nhận",
+                    value: newOrders.length,
+                    bg: "bg-amber-50",
+                    color: "text-amber-700",
+                  },
+                  {
+                    label: "Đang xử lý",
+                    value: processingOrders.length,
+                    bg: "bg-blue-50",
+                    color: "text-blue-700",
+                  },
+                  {
+                    label: "Hoàn thành",
+                    value: completedOrders.length,
+                    bg: "bg-emerald-50",
+                    color: "text-emerald-700",
+                  },
+                  {
+                    label: "Đã hủy",
+                    value: cancelledOrders.length,
+                    bg: "bg-red-50",
+                    color: "text-red-600",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className={`rounded-xl p-4 ${item.bg}`}
+                  >
+                    <p className="text-xs font-semibold text-slate-500">
+                      {item.label}
+                    </p>
+                    <p
+                      className={`mt-2 text-2xl font-black ${item.color}`}
+                    >
+                      {loading ? "..." : formatNumber(item.value)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* JOB STATISTICS */}
+          <section className="mb-8 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-600">
+                  Job Management
                 </p>
+                <h2 className="mt-2 text-xl font-black text-slate-900">
+                  Thống kê Job
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Theo dõi số lượng Job đang được quản lý trên CVISION.
+                </p>
+              </div>
+
+              <Link
+                href="/admin/jobs"
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-700"
+              >
+                Quản lý Job →
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                {
+                  label: "Tổng số Job",
+                  value: jobs.length,
+                  color: "text-slate-900",
+                  bg: "bg-slate-50",
+                },
+                {
+                  label: "Đang hoạt động",
+                  value: activeJobs.length,
+                  color: "text-emerald-700",
+                  bg: "bg-emerald-50",
+                },
+                {
+                  label: "Tạm dừng",
+                  value: pausedJobs.length,
+                  color: "text-amber-700",
+                  bg: "bg-amber-50",
+                },
+                {
+                  label: "Đã đóng",
+                  value: closedJobs.length,
+                  color: "text-slate-600",
+                  bg: "bg-slate-100",
+                },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className={`rounded-xl p-5 ${item.bg}`}
+                >
+                  <p className="text-sm font-semibold text-slate-500">
+                    {item.label}
+                  </p>
+                  <p className={`mt-3 text-3xl font-black ${item.color}`}>
+                    {loading ? "..." : formatNumber(item.value)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* RECENT CV ORDERS */}
+          <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-violet-600">
+                  Recent Orders
+                </p>
+                <h2 className="mt-2 text-xl font-black text-slate-900">
+                  Đơn hàng CV gần đây
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  Theo dõi những yêu cầu dịch vụ CV mới nhất.
+                </p>
+              </div>
+
+              <Link
+                href="/admin/cv-requests"
+                className="text-xs font-bold text-violet-600 hover:underline"
+              >
+                Xem tất cả →
+              </Link>
+            </div>
+
+            {loading ? (
+              <div className="py-10 text-center text-sm text-slate-400">
+                Đang tải dữ liệu...
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px] text-left text-sm">
+                <table className="w-full min-w-[650px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                      <th className="rounded-l-lg px-4 py-4 font-bold">
-                        Ứng viên
-                      </th>
-                      <th className="px-4 py-4 font-bold">Vị trí</th>
-                      <th className="px-4 py-4 font-bold">Doanh nghiệp</th>
-                      <th className="rounded-r-lg px-4 py-4 font-bold">
-                        Giai đoạn
-                      </th>
+                      <th className="px-4 py-4 font-bold">Khách hàng</th>
+                      <th className="px-4 py-4 font-bold">Dịch vụ</th>
+                      <th className="px-4 py-4 font-bold">Ngày đặt</th>
+                      <th className="px-4 py-4 font-bold">Trạng thái</th>
                     </tr>
                   </thead>
 
                   <tbody>
-                    {filtered.slice(0, 10).map((application) => {
-                      const stage = stages.find(
-                        (item) => item.name === application.stage
-                      );
+                    {cvRequests.slice(0, 8).map((request) => {
+                      const statusStyle =
+                        request.status === "Hoàn thành"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : request.status === "Đã hủy"
+                            ? "bg-red-50 text-red-600"
+                            : request.status === "Đang xử lý"
+                              ? "bg-blue-50 text-blue-700"
+                              : "bg-amber-50 text-amber-700";
 
                       return (
                         <tr
-                          key={application.id}
+                          key={request.id}
                           className="border-b border-slate-50 transition hover:bg-slate-50"
                         >
                           <td className="px-4 py-4 font-semibold text-slate-800">
-                            {application.candidates?.full_name ||
-                              "Chưa có tên"}
+                            {request.full_name || "Chưa có tên"}
                           </td>
 
                           <td className="px-4 py-4 text-slate-600">
-                            {application.jobs?.title || "Chưa có vị trí"}
+                            {request.service_type || "Chưa xác định"}
                           </td>
 
-                          <td className="px-4 py-4 text-slate-600">
-                            {application.jobs?.companies?.name ||
-                              "Chưa có công ty"}
+                          <td className="px-4 py-4 text-slate-500">
+                            {formatDate(request.created_at)}
                           </td>
 
                           <td className="px-4 py-4">
                             <span
-                              className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${
-                                stage
-                                  ? `${stage.light} ${stage.text}`
-                                  : "bg-slate-100 text-slate-600"
-                              }`}
+                              className={`rounded-full px-3 py-1.5 text-xs font-bold ${statusStyle}`}
                             >
-                              {application.stage}
+                              {request.status || "Chưa cập nhật"}
                             </span>
                           </td>
                         </tr>
                       );
                     })}
 
-                    {filtered.length === 0 && (
+                    {cvRequests.length === 0 && (
                       <tr>
                         <td
                           colSpan={4}
                           className="px-4 py-10 text-center text-slate-400"
                         >
-                          Không có hồ sơ tuyển dụng phù hợp.
+                          Chưa có đơn hàng CV.
                         </td>
                       </tr>
                     )}
@@ -1026,16 +1037,10 @@ export default function Dashboard() {
                 </table>
               </div>
             )}
-
-            {!loading && filtered.length > 10 && (
-              <p className="mt-4 text-center text-xs text-slate-400">
-                Đang hiển thị 10 trên {filtered.length} hồ sơ phù hợp.
-              </p>
-            )}
           </section>
 
           <footer className="mt-8 text-center text-xs text-slate-400">
-            CVISION Internal Management System © 2026
+            CVISION Business Management System © 2026
           </footer>
         </main>
       </div>
