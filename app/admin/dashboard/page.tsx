@@ -35,26 +35,47 @@ const menu = [
 ];
 
 const stages = [
-  { name: "Nộp CV", color: "bg-sky-500", light: "bg-sky-50", text: "text-sky-700" },
-  { name: "Hẹn phỏng vấn", color: "bg-blue-500", light: "bg-blue-50", text: "text-blue-700" },
-  { name: "Phỏng vấn", color: "bg-indigo-500", light: "bg-indigo-50", text: "text-indigo-700" },
-  { name: "Đàm phán lương", color: "bg-violet-500", light: "bg-violet-50", text: "text-violet-700" },
-  { name: "Nhận Offer", color: "bg-emerald-500", light: "bg-emerald-50", text: "text-emerald-700" },
-  { name: "Đi làm", color: "bg-teal-500", light: "bg-teal-50", text: "text-teal-700" },
+  {
+    name: "Nộp CV",
+    color: "bg-sky-500",
+    light: "bg-sky-50",
+    text: "text-sky-700",
+  },
+  {
+    name: "Hẹn phỏng vấn",
+    color: "bg-blue-500",
+    light: "bg-blue-50",
+    text: "text-blue-700",
+  },
+  {
+    name: "Phỏng vấn",
+    color: "bg-indigo-500",
+    light: "bg-indigo-50",
+    text: "text-indigo-700",
+  },
+  {
+    name: "Đàm phán lương",
+    color: "bg-violet-500",
+    light: "bg-violet-50",
+    text: "text-violet-700",
+  },
+  {
+    name: "Nhận Offer",
+    color: "bg-emerald-500",
+    light: "bg-emerald-50",
+    text: "text-emerald-700",
+  },
+  {
+    name: "Đi làm",
+    color: "bg-teal-500",
+    light: "bg-teal-50",
+    text: "text-teal-700",
+  },
 ];
 
 function percentage(value: number, total: number) {
   if (!total) return 0;
   return Math.round((value / total) * 100);
-}
-
-function formatDate() {
-  return new Intl.DateTimeFormat("vi-VN", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(new Date());
 }
 
 export default function Dashboard() {
@@ -70,9 +91,24 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [todayLabel, setTodayLabel] = useState("");
 
   const isAdmin = currentRole === "admin";
 
+  // Lấy ngày hiện tại sau khi component được tải ở trình duyệt.
+  // Cách này tránh lỗi blocking-prerender-current-time của Next.js.
+  useEffect(() => {
+    setTodayLabel(
+      new Intl.DateTimeFormat("vi-VN", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      }).format(new Date())
+    );
+  }, []);
+
+  // Tải dữ liệu Dashboard từ Supabase.
   useEffect(() => {
     let active = true;
 
@@ -103,7 +139,9 @@ export default function Dashboard() {
       if (!active) return;
 
       if (profileError || !profile) {
-        setErrorMessage("Không tìm thấy thông tin tài khoản trong profiles.");
+        setErrorMessage(
+          "Không tìm thấy thông tin tài khoản trong profiles."
+        );
         setLoading(false);
         return;
       }
@@ -145,7 +183,9 @@ export default function Dashboard() {
       if (applicationError) {
         setErrorMessage(applicationError.message);
       } else {
-        setApplications((applicationData || []) as unknown as Application[]);
+        setApplications(
+          (applicationData || []) as unknown as Application[]
+        );
       }
 
       setLoading(false);
@@ -158,6 +198,7 @@ export default function Dashboard() {
     };
   }, [router]);
 
+  // Đăng xuất.
   async function handleLogout() {
     const { error } = await supabase.auth.signOut();
 
@@ -169,16 +210,16 @@ export default function Dashboard() {
     router.replace("/admin/login");
   }
 
-  const visibleApplications = useMemo(
-    () =>
-      isAdmin
-        ? applications
-        : applications.filter(
-            (application) => application.assigned_to === currentUserId
-          ),
-    [applications, currentUserId, isAdmin]
-  );
+  // Phân quyền dữ liệu hiển thị.
+  const visibleApplications = useMemo(() => {
+    return isAdmin
+      ? applications
+      : applications.filter(
+          (application) => application.assigned_to === currentUserId
+        );
+  }, [applications, currentUserId, isAdmin]);
 
+  // Tìm kiếm hồ sơ.
   const filtered = useMemo(() => {
     return visibleApplications.filter((application) => {
       const name = application.candidates?.full_name || "";
@@ -191,6 +232,7 @@ export default function Dashboard() {
     });
   }, [visibleApplications, search]);
 
+  // Các chỉ số tổng quan.
   const totalCandidates = new Set(
     visibleApplications
       .map((application) => application.candidate_id)
@@ -213,6 +255,10 @@ export default function Dashboard() {
       application.stage === "Phỏng vấn"
   ).length;
 
+  const negotiationCount = visibleApplications.filter(
+    (application) => application.stage === "Đàm phán lương"
+  ).length;
+
   const stats = [
     {
       title: "Ứng viên phụ trách",
@@ -221,7 +267,7 @@ export default function Dashboard() {
       icon: "♙",
       color: "text-blue-600",
       background: "bg-blue-50",
-      trend: "Ứng viên",
+      label: "Ứng viên",
     },
     {
       title: "Tổng hồ sơ tuyển dụng",
@@ -230,7 +276,7 @@ export default function Dashboard() {
       icon: "▤",
       color: "text-violet-600",
       background: "bg-violet-50",
-      trend: "Hồ sơ",
+      label: "Hồ sơ",
     },
     {
       title: "Đã nhận Offer",
@@ -239,7 +285,7 @@ export default function Dashboard() {
       icon: "✉",
       color: "text-emerald-600",
       background: "bg-emerald-50",
-      trend: "Offer",
+      label: "Offer",
     },
     {
       title: "Đã đi làm",
@@ -248,10 +294,11 @@ export default function Dashboard() {
       icon: "✓",
       color: "text-teal-600",
       background: "bg-teal-50",
-      trend: "Onboard",
+      label: "Onboard",
     },
   ];
 
+  // Thống kê từng giai đoạn.
   const stageCounts = stages.map((stage) => ({
     ...stage,
     count: visibleApplications.filter(
@@ -264,6 +311,12 @@ export default function Dashboard() {
     ...stageCounts.map((stage) => stage.count)
   );
 
+  const conversionRate = percentage(
+    onboardCount,
+    totalApplications
+  );
+
+  // Hiệu suất nhân viên chỉ dành cho Admin.
   const recruiterStats = profiles
     .filter((profile) => profile.role === "recruiter")
     .map((profile) => {
@@ -301,8 +354,6 @@ export default function Dashboard() {
       };
     });
 
-  const conversionRate = percentage(onboardCount, totalApplications);
-
   return (
     <div className="min-h-screen bg-[#f4f7fb] text-slate-800">
       {/* MOBILE HEADER */}
@@ -318,9 +369,10 @@ export default function Dashboard() {
 
         <button
           type="button"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          onClick={() => setMobileMenuOpen((open) => !open)}
           className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl"
           aria-label="Mở menu"
+          aria-expanded={mobileMenuOpen}
         >
           {mobileMenuOpen ? "×" : "☰"}
         </button>
@@ -329,6 +381,13 @@ export default function Dashboard() {
       {/* MOBILE MENU */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/40 lg:hidden">
+          <button
+            type="button"
+            aria-label="Đóng menu"
+            className="absolute inset-0 h-full w-full"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+
           <div className="absolute right-0 top-0 flex h-full w-[min(86vw,330px)] flex-col bg-[#111c35] p-5 text-white shadow-2xl">
             <div className="mb-8 flex items-center justify-between">
               <div>
@@ -337,10 +396,12 @@ export default function Dashboard() {
                   ADMIN WORKSPACE
                 </p>
               </div>
+
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
                 className="text-2xl text-slate-300"
+                aria-label="Đóng menu"
               >
                 ×
               </button>
@@ -358,7 +419,9 @@ export default function Dashboard() {
                       : "text-slate-300 hover:bg-white/10"
                   }`}
                 >
-                  <span className="w-6 text-center text-lg">{item.icon}</span>
+                  <span className="w-6 text-center text-lg">
+                    {item.icon}
+                  </span>
                   {item.name}
                 </Link>
               ))}
@@ -367,7 +430,11 @@ export default function Dashboard() {
                 <Link
                   href="/admin/users"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-300 hover:bg-white/10"
+                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                    pathname === "/admin/users"
+                      ? "bg-blue-600 text-white"
+                      : "text-slate-300 hover:bg-white/10"
+                  }`}
                 >
                   <span className="w-6 text-center text-lg">♙</span>
                   Quản lý nhân viên
@@ -376,7 +443,9 @@ export default function Dashboard() {
             </nav>
 
             <div className="mt-auto border-t border-white/10 pt-5">
-              <p className="mb-3 text-sm font-semibold">{currentName}</p>
+              <p className="mb-3 text-sm font-semibold">
+                {currentName || "Tài khoản"}
+              </p>
               <button
                 type="button"
                 onClick={handleLogout}
@@ -396,8 +465,11 @@ export default function Dashboard() {
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-xl font-black shadow-lg shadow-blue-950/30">
               C
             </div>
+
             <div>
-              <p className="text-2xl font-black tracking-tight">CVISION</p>
+              <p className="text-2xl font-black tracking-tight">
+                CVISION
+              </p>
               <p className="mt-0.5 text-[9px] font-bold tracking-[0.22em] text-blue-300">
                 ADMIN WORKSPACE
               </p>
@@ -461,12 +533,16 @@ export default function Dashboard() {
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 font-bold">
               {currentName.charAt(0).toUpperCase() || "C"}
             </div>
+
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold">{currentName || "Tài khoản"}</p>
+              <p className="truncate text-sm font-bold">
+                {currentName || "Tài khoản"}
+              </p>
               <p className="text-xs text-slate-400">
                 {isAdmin ? "Quản trị viên" : "Recruiter"}
               </p>
             </div>
+
             <button
               type="button"
               onClick={handleLogout}
@@ -480,7 +556,7 @@ export default function Dashboard() {
 
         {/* MAIN CONTENT */}
         <main className="min-w-0 flex-1 px-4 pb-8 pt-[88px] sm:px-6 lg:ml-[250px] lg:px-8 lg:pt-8">
-          {/* TOP HEADER */}
+          {/* HEADER */}
           <header className="mb-8 flex flex-wrap items-center justify-between gap-5">
             <div>
               <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-400">
@@ -488,9 +564,11 @@ export default function Dashboard() {
                 <span>/</span>
                 <span className="text-blue-600">Dashboard</span>
               </div>
+
               <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
                 Tổng quan hoạt động
               </h1>
+
               <p className="mt-2 text-sm text-slate-500">
                 Xin chào, {currentName || "bạn"}! Chúc bạn một ngày làm việc hiệu quả.
               </p>
@@ -498,9 +576,11 @@ export default function Dashboard() {
 
             <div className="flex items-center gap-3">
               <div className="hidden rounded-xl border border-slate-200 bg-white px-4 py-3 text-right shadow-sm sm:block">
-                <p className="text-xs font-semibold text-slate-400">Hôm nay</p>
+                <p className="text-xs font-semibold text-slate-400">
+                  Hôm nay
+                </p>
                 <p className="mt-1 text-sm font-bold capitalize text-slate-700">
-                  {formatDate()}
+                  {todayLabel || "Đang cập nhật..."}
                 </p>
               </div>
 
@@ -528,6 +608,7 @@ export default function Dashboard() {
                   <p className="text-sm font-semibold text-slate-500">
                     {item.title}
                   </p>
+
                   <div
                     className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${item.background} ${item.color}`}
                   >
@@ -539,32 +620,38 @@ export default function Dashboard() {
                   <h2 className="text-3xl font-black tracking-tight text-slate-900">
                     {loading ? "..." : item.value.toLocaleString("vi-VN")}
                   </h2>
+
                   <span className="rounded-lg bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-400">
-                    {item.trend}
+                    {item.label}
                   </span>
                 </div>
 
-                <p className="mt-2 text-xs text-slate-400">{item.note}</p>
+                <p className="mt-2 text-xs text-slate-400">
+                  {item.note}
+                </p>
               </div>
             ))}
           </section>
 
-          {/* OVERVIEW GRID */}
+          {/* ANALYTICS */}
           <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
-            {/* PIPELINE CHART */}
+            {/* RECRUITMENT PIPELINE */}
             <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6 xl:col-span-2">
               <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
                     Recruitment Analytics
                   </p>
+
                   <h2 className="mt-2 text-xl font-black text-slate-900">
                     Tiến độ tuyển dụng
                   </h2>
+
                   <p className="mt-1 text-sm text-slate-400">
                     Phân bổ hồ sơ theo từng giai đoạn tuyển dụng
                   </p>
                 </div>
+
                 <Link
                   href="/admin/pipeline"
                   className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
@@ -580,9 +667,11 @@ export default function Dashboard() {
                     className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"
                   >
                     <div className={`mb-3 h-1.5 rounded-full ${stage.color}`} />
+
                     <p className="text-xs font-semibold text-slate-500">
                       {stage.name}
                     </p>
+
                     <p className="mt-1 text-2xl font-black text-slate-900">
                       {loading ? "..." : stage.count}
                     </p>
@@ -604,6 +693,7 @@ export default function Dashboard() {
                       <span className="text-xs font-semibold text-slate-500">
                         {stage.name}
                       </span>
+
                       <div className="h-3 overflow-hidden rounded-full bg-slate-100">
                         <div
                           className={`h-full rounded-full transition-all duration-700 ${stage.color}`}
@@ -612,6 +702,7 @@ export default function Dashboard() {
                           }}
                         />
                       </div>
+
                       <span className="text-right text-sm font-bold tabular-nums text-slate-700">
                         {loading ? "..." : stage.count}
                       </span>
@@ -626,9 +717,11 @@ export default function Dashboard() {
               <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
                 Performance
               </p>
+
               <h2 className="mt-2 text-xl font-black text-slate-900">
                 Hiệu quả tuyển dụng
               </h2>
+
               <p className="mt-1 text-sm text-slate-400">
                 Kết quả chuyển đổi hồ sơ
               </p>
@@ -644,6 +737,7 @@ export default function Dashboard() {
                     <span className="text-4xl font-black text-slate-900">
                       {loading ? "..." : `${conversionRate}%`}
                     </span>
+
                     <span className="mt-1 text-xs font-medium text-slate-400">
                       Tỷ lệ đi làm
                     </span>
@@ -655,8 +749,11 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
-                    <span className="text-sm text-slate-500">Phỏng vấn</span>
+                    <span className="text-sm text-slate-500">
+                      Phỏng vấn
+                    </span>
                   </div>
+
                   <span className="font-bold text-slate-800">
                     {loading ? "..." : interviewCount}
                   </span>
@@ -664,9 +761,25 @@ export default function Dashboard() {
 
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                    <span className="text-sm text-slate-500">Nhận Offer</span>
+                    <span className="h-2.5 w-2.5 rounded-full bg-violet-500" />
+                    <span className="text-sm text-slate-500">
+                      Đàm phán
+                    </span>
                   </div>
+
+                  <span className="font-bold text-slate-800">
+                    {loading ? "..." : negotiationCount}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    <span className="text-sm text-slate-500">
+                      Nhận Offer
+                    </span>
+                  </div>
+
                   <span className="font-bold text-slate-800">
                     {loading ? "..." : offerCount}
                   </span>
@@ -675,8 +788,11 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-teal-500" />
-                    <span className="text-sm text-slate-500">Đã đi làm</span>
+                    <span className="text-sm text-slate-500">
+                      Đã đi làm
+                    </span>
                   </div>
+
                   <span className="font-bold text-slate-800">
                     {loading ? "..." : onboardCount}
                   </span>
@@ -693,13 +809,16 @@ export default function Dashboard() {
                   <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
                     Team Performance
                   </p>
+
                   <h2 className="mt-2 text-xl font-black text-slate-900">
                     Hiệu suất nhân viên
                   </h2>
+
                   <p className="mt-1 text-sm text-slate-400">
                     Theo dõi kết quả công việc của từng Recruiter
                   </p>
                 </div>
+
                 <Link
                   href="/admin/users"
                   className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-blue-50 hover:text-blue-600"
@@ -712,14 +831,20 @@ export default function Dashboard() {
                 <table className="w-full min-w-[780px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                      <th className="rounded-l-lg px-4 py-4 font-bold">Nhân viên</th>
-                      <th className="px-4 py-4 font-bold">Hồ sơ được giao</th>
+                      <th className="rounded-l-lg px-4 py-4 font-bold">
+                        Nhân viên
+                      </th>
+                      <th className="px-4 py-4 font-bold">
+                        Hồ sơ được giao
+                      </th>
                       <th className="px-4 py-4 font-bold">Phỏng vấn</th>
                       <th className="px-4 py-4 font-bold">Đàm phán</th>
                       <th className="px-4 py-4 font-bold">Offer</th>
                       <th className="px-4 py-4 font-bold">Đi làm</th>
                       <th className="px-4 py-4 font-bold">Tỷ lệ Offer</th>
-                      <th className="rounded-r-lg px-4 py-4 font-bold">Tỷ lệ đi làm</th>
+                      <th className="rounded-r-lg px-4 py-4 font-bold">
+                        Tỷ lệ đi làm
+                      </th>
                     </tr>
                   </thead>
 
@@ -732,23 +857,39 @@ export default function Dashboard() {
                         <td className="px-4 py-4 font-semibold text-slate-800">
                           <div className="flex items-center gap-3">
                             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 font-bold text-blue-600">
-                              {(recruiter.full_name || "R").charAt(0).toUpperCase()}
+                              {(recruiter.full_name || "R")
+                                .charAt(0)
+                                .toUpperCase()}
                             </div>
+
                             {recruiter.full_name || "Chưa đặt tên"}
                           </div>
                         </td>
-                        <td className="px-4 py-4 font-semibold">{recruiter.total}</td>
-                        <td className="px-4 py-4">{recruiter.interview}</td>
-                        <td className="px-4 py-4">{recruiter.negotiation}</td>
+
+                        <td className="px-4 py-4 font-semibold">
+                          {recruiter.total}
+                        </td>
+
+                        <td className="px-4 py-4">
+                          {recruiter.interview}
+                        </td>
+
+                        <td className="px-4 py-4">
+                          {recruiter.negotiation}
+                        </td>
+
                         <td className="px-4 py-4 font-semibold text-emerald-600">
                           {recruiter.offer}
                         </td>
+
                         <td className="px-4 py-4 font-semibold text-teal-600">
                           {recruiter.onboard}
                         </td>
+
                         <td className="px-4 py-4 font-semibold text-blue-600">
                           {recruiter.offerRate}%
                         </td>
+
                         <td className="px-4 py-4 font-semibold text-teal-600">
                           {recruiter.onboardRate}%
                         </td>
@@ -757,7 +898,10 @@ export default function Dashboard() {
 
                     {recruiterStats.length === 0 && (
                       <tr>
-                        <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
+                        <td
+                          colSpan={8}
+                          className="px-4 py-10 text-center text-slate-400"
+                        >
                           Chưa có tài khoản Recruiter.
                         </td>
                       </tr>
@@ -779,9 +923,11 @@ export default function Dashboard() {
                 <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
                   Recent Applications
                 </p>
+
                 <h2 className="mt-2 text-xl font-black text-slate-900">
                   Hồ sơ tuyển dụng gần đây
                 </h2>
+
                 <p className="mt-1 text-sm text-slate-400">
                   {isAdmin
                     ? "Danh sách hồ sơ toàn hệ thống."
@@ -793,6 +939,7 @@ export default function Dashboard() {
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
                   ⌕
                 </span>
+
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -814,10 +961,14 @@ export default function Dashboard() {
                 <table className="w-full min-w-[700px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                      <th className="rounded-l-lg px-4 py-4 font-bold">Ứng viên</th>
+                      <th className="rounded-l-lg px-4 py-4 font-bold">
+                        Ứng viên
+                      </th>
                       <th className="px-4 py-4 font-bold">Vị trí</th>
                       <th className="px-4 py-4 font-bold">Doanh nghiệp</th>
-                      <th className="rounded-r-lg px-4 py-4 font-bold">Giai đoạn</th>
+                      <th className="rounded-r-lg px-4 py-4 font-bold">
+                        Giai đoạn
+                      </th>
                     </tr>
                   </thead>
 
@@ -833,14 +984,19 @@ export default function Dashboard() {
                           className="border-b border-slate-50 transition hover:bg-slate-50"
                         >
                           <td className="px-4 py-4 font-semibold text-slate-800">
-                            {application.candidates?.full_name || "Chưa có tên"}
+                            {application.candidates?.full_name ||
+                              "Chưa có tên"}
                           </td>
+
                           <td className="px-4 py-4 text-slate-600">
                             {application.jobs?.title || "Chưa có vị trí"}
                           </td>
+
                           <td className="px-4 py-4 text-slate-600">
-                            {application.jobs?.companies?.name || "Chưa có công ty"}
+                            {application.jobs?.companies?.name ||
+                              "Chưa có công ty"}
                           </td>
+
                           <td className="px-4 py-4">
                             <span
                               className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${
@@ -858,7 +1014,10 @@ export default function Dashboard() {
 
                     {filtered.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-4 py-10 text-center text-slate-400">
+                        <td
+                          colSpan={4}
+                          className="px-4 py-10 text-center text-slate-400"
+                        >
                           Không có hồ sơ tuyển dụng phù hợp.
                         </td>
                       </tr>
