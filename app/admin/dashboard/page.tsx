@@ -37,11 +37,14 @@ type Job = {
 
 const menu = [
   { icon: "▦", name: "Dashboard", href: "/admin/dashboard" },
-  { icon: "✉", name: "Đơn hàng CV", href: "/admin/cv-requests" },
+  { icon: "♟", name: "Ứng viên", href: "/admin/candidates" },
+  { icon: "▤", name: "Quản lý công việc", href: "/admin/tasks" },
+  { icon: "✉", name: "Dịch vụ CV", href: "/admin/cv-requests" },
   { icon: "▣", name: "Quản lý CV", href: "/admin/cv-management" },
-  { icon: "▤", name: "Quản lý Job", href: "/admin/jobs" },
+  { icon: "▧", name: "Báo cáo", href: "/admin/reports" },
+  { icon: "◇", name: "Quản lý tài chính", href: "/admin/finance" },
   { icon: "♙", name: "Quản lý nhân viên", href: "/admin/users" },
-  { icon: "◈", name: "Quản lý tài chính", href: "/admin/finance" },
+  { icon: "⚙", name: "Cài đặt thương hiệu", href: "/admin/brand-settings" },
 ];
 
 const orderStatuses = [
@@ -370,11 +373,11 @@ export default function Dashboard() {
             onClick={() => setMobileMenuOpen(false)}
           />
 
-          <div className="absolute right-0 top-0 flex h-full w-[min(86vw,330px)] flex-col bg-[#111c35] p-5 text-white shadow-2xl">
+          <div className="absolute right-0 top-0 flex h-full w-[min(86vw,330px)] flex-col bg-white p-5 text-slate-800 shadow-2xl">
             <div className="mb-8 flex items-center justify-between">
               <div>
-                <p className="text-2xl font-black">CVISION</p>
-                <p className="mt-1 text-[10px] font-bold tracking-[0.2em] text-blue-300">
+                <p className="text-2xl font-black text-slate-900">CVISION</p>
+                <p className="mt-1 text-[10px] font-bold tracking-[0.2em] text-blue-600">
                   BUSINESS WORKSPACE
                 </p>
               </div>
@@ -382,7 +385,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="text-2xl text-slate-300"
+                className="text-2xl text-slate-500"
               >
                 ×
               </button>
@@ -397,10 +400,14 @@ export default function Dashboard() {
                   className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
                     pathname === item.href
                       ? "bg-blue-600 text-white"
-                      : "text-slate-300 hover:bg-white/10"
+                      : "text-slate-700 hover:bg-slate-100"
                   }`}
                 >
-                  <span className="w-6 text-center text-lg">
+                  <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-lg ${
+                    pathname === item.href
+                      ? "bg-blue-500 text-white"
+                      : "bg-slate-100 text-slate-600"
+                  }`}>
                     {item.icon}
                   </span>
                   {item.name}
@@ -408,14 +415,14 @@ export default function Dashboard() {
               ))}
             </nav>
 
-            <div className="mt-auto border-t border-white/10 pt-5">
+            <div className="mt-auto border-t border-slate-200 pt-5">
               <p className="mb-3 text-sm font-semibold">
                 {profile?.full_name || "Tài khoản"}
               </p>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="w-full rounded-xl bg-red-500/10 px-4 py-3 text-sm font-bold text-red-300"
+                className="w-full rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
               >
                 Đăng xuất
               </button>
@@ -426,7 +433,7 @@ export default function Dashboard() {
 
       <div className="flex min-h-screen">
         {/* DESKTOP SIDEBAR */}
-        <aside className="fixed inset-y-0 left-0 z-30 hidden w-[250px] flex-col bg-[#111c35] px-5 py-7 text-white lg:flex">
+        <aside className="fixed inset-y-0 left-0 z-30 hidden w-[250px] flex-col border-r border-slate-200 bg-white px-5 py-7 text-slate-800 lg:flex">
           <Link href="/" className="mb-12 flex items-center gap-3 px-2">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-xl font-black">
               C
@@ -436,13 +443,13 @@ export default function Dashboard() {
               <p className="text-2xl font-black tracking-tight">
                 CVISION
               </p>
-              <p className="mt-0.5 text-[9px] font-bold tracking-[0.22em] text-blue-300">
+              <p className="mt-0.5 text-[9px] font-bold tracking-[0.22em] text-blue-600">
                 BUSINESS WORKSPACE
               </p>
             </div>
           </Link>
 
-          <p className="mb-4 px-3 text-[10px] font-extrabold uppercase tracking-[0.2em] text-slate-500">
+          <p className="mb-4 px-3 text-[10px] font-extrabold uppercase tracking-[0.2em] text-slate-400">
             Workspace
           </p>
 
@@ -453,11 +460,15 @@ export default function Dashboard() {
                 href={item.href}
                 className={`flex items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-semibold transition ${
                   pathname === item.href
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
-                    : "text-slate-300 hover:bg-white/10 hover:text-white"
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-100"
+                    : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
                 }`}
               >
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-lg">
+                <span className={`flex h-7 w-7 items-center justify-center rounded-lg text-lg ${
+                  pathname === item.href
+                    ? "bg-blue-500 text-white"
+                    : "bg-slate-100 text-slate-600"
+                }`}>
                   {item.icon}
                 </span>
                 {item.name}
@@ -465,17 +476,17 @@ export default function Dashboard() {
             ))}
           </nav>
 
-          <div className="mt-auto rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="mt-auto rounded-2xl border border-blue-100 bg-blue-50 p-4">
             <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-lg">
               ✦
             </div>
-            <p className="font-bold">CVISION Workspace</p>
-            <p className="mt-2 text-xs leading-5 text-slate-400">
-              Quản trị dịch vụ CV và hoạt động kinh doanh.
+            <p className="font-bold text-slate-900">CVISION Workspace</p>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              Nền tảng quản lý ứng viên và kết nối doanh nghiệp.
             </p>
           </div>
 
-          <div className="mt-5 flex items-center gap-3 border-t border-white/10 pt-5">
+          <div className="mt-5 flex items-center gap-3 border-t border-slate-200 pt-5">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 font-bold">
               {(profile?.full_name || "C").charAt(0).toUpperCase()}
             </div>
@@ -484,7 +495,7 @@ export default function Dashboard() {
               <p className="truncate text-sm font-bold">
                 {profile?.full_name || "Tài khoản"}
               </p>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 {isAdmin ? "Quản trị viên" : "Nhân viên"}
               </p>
             </div>
@@ -493,7 +504,7 @@ export default function Dashboard() {
               type="button"
               onClick={handleLogout}
               title="Đăng xuất"
-              className="rounded-lg p-2 text-slate-400 transition hover:bg-red-500/10 hover:text-red-300"
+              className="rounded-lg p-2 text-slate-500 transition hover:bg-red-50 hover:text-red-600"
             >
               ↪
             </button>
