@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -35,12 +35,12 @@ const menu = [
 ];
 
 const stages = [
-  { name: "Nộp CV", color: "bg-sky-500" },
-  { name: "Hẹn phỏng vấn", color: "bg-blue-500" },
-  { name: "Phỏng vấn", color: "bg-indigo-500" },
-  { name: "Đàm phán lương", color: "bg-cyan-500" },
-  { name: "Nhận Offer", color: "bg-blue-600" },
-  { name: "Đi làm", color: "bg-sky-700" },
+  { name: "Nộp CV", color: "bg-sky-500", light: "bg-sky-50", text: "text-sky-700" },
+  { name: "Hẹn phỏng vấn", color: "bg-blue-500", light: "bg-blue-50", text: "text-blue-700" },
+  { name: "Phỏng vấn", color: "bg-indigo-500", light: "bg-indigo-50", text: "text-indigo-700" },
+  { name: "Đàm phán lương", color: "bg-violet-500", light: "bg-violet-50", text: "text-violet-700" },
+  { name: "Nhận Offer", color: "bg-emerald-500", light: "bg-emerald-50", text: "text-emerald-700" },
+  { name: "Đi làm", color: "bg-teal-500", light: "bg-teal-50", text: "text-teal-700" },
 ];
 
 function percentage(value: number, total: number) {
@@ -48,11 +48,20 @@ function percentage(value: number, total: number) {
   return Math.round((value / total) * 100);
 }
 
+function formatDate() {
+  return new Intl.DateTimeFormat("vi-VN", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const pathname = usePathname();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [applications, setApplications] = useState<Application[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
@@ -160,21 +169,27 @@ export default function Dashboard() {
     router.replace("/admin/login");
   }
 
-  const visibleApplications = isAdmin
-    ? applications
-    : applications.filter(
-        (application) => application.assigned_to === currentUserId
-      );
+  const visibleApplications = useMemo(
+    () =>
+      isAdmin
+        ? applications
+        : applications.filter(
+            (application) => application.assigned_to === currentUserId
+          ),
+    [applications, currentUserId, isAdmin]
+  );
 
-  const filtered = visibleApplications.filter((application) => {
-    const name = application.candidates?.full_name || "";
-    const job = application.jobs?.title || "";
-    const company = application.jobs?.companies?.name || "";
+  const filtered = useMemo(() => {
+    return visibleApplications.filter((application) => {
+      const name = application.candidates?.full_name || "";
+      const job = application.jobs?.title || "";
+      const company = application.jobs?.companies?.name || "";
 
-    return `${name} ${job} ${company}`
-      .toLocaleLowerCase("vi-VN")
-      .includes(search.toLocaleLowerCase("vi-VN"));
-  });
+      return `${name} ${job} ${company}`
+        .toLocaleLowerCase("vi-VN")
+        .includes(search.toLocaleLowerCase("vi-VN"));
+    });
+  }, [visibleApplications, search]);
 
   const totalCandidates = new Set(
     visibleApplications
@@ -202,50 +217,38 @@ export default function Dashboard() {
     {
       title: "Ứng viên phụ trách",
       value: totalCandidates,
-      icon: "♙",
       note: "Ứng viên có hồ sơ tuyển dụng",
-      accent: "text-sky-600",
-      iconBg: "bg-sky-50",
+      icon: "♙",
+      color: "text-blue-600",
+      background: "bg-blue-50",
+      trend: "Ứng viên",
     },
     {
       title: "Tổng hồ sơ tuyển dụng",
       value: totalApplications,
-      icon: "▤",
       note: "Lượt ứng tuyển được giao",
-      accent: "text-blue-600",
-      iconBg: "bg-blue-50",
+      icon: "▤",
+      color: "text-violet-600",
+      background: "bg-violet-50",
+      trend: "Hồ sơ",
     },
     {
       title: "Đã nhận Offer",
       value: offerCount,
-      icon: "✉",
       note: "Ứng viên nhận Offer",
-      accent: "text-indigo-600",
-      iconBg: "bg-indigo-50",
+      icon: "✉",
+      color: "text-emerald-600",
+      background: "bg-emerald-50",
+      trend: "Offer",
     },
     {
       title: "Đã đi làm",
       value: onboardCount,
-      icon: "✓",
       note: "Ứng viên đã onboard",
-      accent: "text-cyan-700",
-      iconBg: "bg-cyan-50",
-    },
-    {
-      title: "Tỷ lệ nhận Offer",
-      value: `${percentage(offerCount, totalApplications)}%`,
-      icon: "%",
-      note: "Offer / tổng hồ sơ tuyển dụng",
-      accent: "text-blue-700",
-      iconBg: "bg-blue-50",
-    },
-    {
-      title: "Tỷ lệ đi làm",
-      value: `${percentage(onboardCount, totalApplications)}%`,
-      icon: "↗",
-      note: "Onboard / tổng hồ sơ tuyển dụng",
-      accent: "text-sky-700",
-      iconBg: "bg-sky-50",
+      icon: "✓",
+      color: "text-teal-600",
+      background: "bg-teal-50",
+      trend: "Onboard",
     },
   ];
 
@@ -298,99 +301,86 @@ export default function Dashboard() {
       };
     });
 
+  const conversionRate = percentage(onboardCount, totalApplications);
+
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-sky-50 via-white to-blue-50 text-slate-800">
-      {/* MOBILE MENU */}
-      <div className="fixed inset-x-0 top-0 z-40 border-b border-sky-100 bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:hidden">
-        <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2" onClick={() => setMobileMenuOpen(false)} aria-label="CVISION - Trang chủ công khai">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 font-black text-white shadow-sm">
-              C
-            </span>
-            <span className="text-lg font-black tracking-tight text-sky-700">CVISION</span>
-          </Link>
-          <button
-            type="button"
-            aria-label={mobileMenuOpen ? "Đóng menu" : "Mở menu"}
-            aria-expanded={mobileMenuOpen}
-            onClick={() => setMobileMenuOpen((open) => !open)}
-            className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 text-2xl font-bold text-sky-700"
-          >
-            {mobileMenuOpen ? "×" : "☰"}
-          </button>
-        </div>
+    <div className="min-h-screen bg-[#f4f7fb] text-slate-800">
+      {/* MOBILE HEADER */}
+      <div className="fixed inset-x-0 top-0 z-40 flex h-[68px] items-center justify-between border-b border-slate-200 bg-white px-4 shadow-sm lg:hidden">
+        <Link href="/" className="flex items-center gap-2">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-xl font-black text-white">
+            C
+          </span>
+          <span className="text-xl font-black tracking-tight text-slate-900">
+            CVISION
+          </span>
+        </Link>
+
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-xl"
+          aria-label="Mở menu"
+        >
+          {mobileMenuOpen ? "×" : "☰"}
+        </button>
       </div>
 
+      {/* MOBILE MENU */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <button
-            type="button"
-            aria-label="Đóng menu"
-            className="absolute inset-0 bg-slate-900/40"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-          <div className="absolute right-0 top-0 flex h-full w-[min(86vw,340px)] flex-col overflow-y-auto bg-white p-5 shadow-2xl">
-            <div className="mb-6 flex items-center justify-between border-b border-sky-100 pb-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/40 lg:hidden">
+          <div className="absolute right-0 top-0 flex h-full w-[min(86vw,330px)] flex-col bg-[#111c35] p-5 text-white shadow-2xl">
+            <div className="mb-8 flex items-center justify-between">
               <div>
-                <p className="text-xl font-black text-sky-700">CVISION</p>
-                <p className="text-[10px] font-bold tracking-[0.18em] text-sky-500">ADMIN WORKSPACE</p>
+                <p className="text-2xl font-black">CVISION</p>
+                <p className="mt-1 text-[10px] font-bold tracking-[0.2em] text-blue-300">
+                  ADMIN WORKSPACE
+                </p>
               </div>
               <button
                 type="button"
-                aria-label="Đóng menu"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-2xl text-slate-600"
+                className="text-2xl text-slate-300"
               >
                 ×
               </button>
             </div>
 
-            <p className="mb-3 px-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-400">
-              Workspace
-            </p>
             <nav className="space-y-2">
-              {menu.map((item) => {
-                const active = pathname === item.href;
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                      active
-                        ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md shadow-sky-100"
-                        : "text-slate-700 hover:bg-sky-50 hover:text-sky-700"
-                    }`}
-                  >
-                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50/70 text-lg">
-                      {item.icon}
-                    </span>
-                    {item.name}
-                  </Link>
-                );
-              })}
+              {menu.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                    pathname === item.href
+                      ? "bg-blue-600 text-white"
+                      : "text-slate-300 hover:bg-white/10"
+                  }`}
+                >
+                  <span className="w-6 text-center text-lg">{item.icon}</span>
+                  {item.name}
+                </Link>
+              ))}
+
               {isAdmin && (
                 <Link
                   href="/admin/users"
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex min-h-12 items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                    pathname === "/admin/users"
-                      ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md"
-                      : "text-slate-700 hover:bg-sky-50 hover:text-sky-700"
-                  }`}
+                  className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-300 hover:bg-white/10"
                 >
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg text-lg">♙</span>
+                  <span className="w-6 text-center text-lg">♙</span>
                   Quản lý nhân viên
                 </Link>
               )}
             </nav>
 
-            <div className="mt-auto border-t border-sky-100 pt-5">
-              <p className="mb-3 text-sm font-semibold text-slate-700">{currentName || "Tài khoản"}</p>
+            <div className="mt-auto border-t border-white/10 pt-5">
+              <p className="mb-3 text-sm font-semibold">{currentName}</p>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="min-h-11 w-full rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
+                className="w-full rounded-xl bg-red-500/10 px-4 py-3 text-sm font-bold text-red-300"
               >
                 Đăng xuất
               </button>
@@ -399,366 +389,497 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* SIDEBAR */}
-      <aside className="hidden w-64 shrink-0 border-r border-sky-100 bg-white p-5 shadow-sm md:flex md:flex-col">
-        <a href="/" className="mb-10 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-blue-600 text-xl font-black text-white shadow-lg shadow-sky-200">
-            C
-          </div>
-          <div>
-            <span className="text-2xl font-black tracking-tight text-sky-700">
-              CVISION
-            </span>
-            <p className="text-[9px] font-bold tracking-[0.2em] text-sky-500">
-              ADMIN WORKSPACE
-            </p>
-          </div>
-        </a>
+      <div className="flex min-h-screen">
+        {/* DESKTOP SIDEBAR */}
+        <aside className="fixed inset-y-0 left-0 z-30 hidden w-[250px] flex-col bg-[#111c35] px-5 py-7 text-white lg:flex">
+          <Link href="/" className="mb-12 flex items-center gap-3 px-2">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-xl font-black shadow-lg shadow-blue-950/30">
+              C
+            </div>
+            <div>
+              <p className="text-2xl font-black tracking-tight">CVISION</p>
+              <p className="mt-0.5 text-[9px] font-bold tracking-[0.22em] text-blue-300">
+                ADMIN WORKSPACE
+              </p>
+            </div>
+          </Link>
 
-        <p className="mb-4 px-3 text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-400">
-          Workspace
-        </p>
-
-        <nav className="space-y-2">
-          {menu.map((item, i) => (
-            <a
-              key={item.name}
-              href={item.href}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                i === 0
-                  ? "bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md shadow-sky-100"
-                  : "text-slate-600 hover:bg-sky-50 hover:text-sky-700"
-              }`}
-            >
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 text-lg">
-                {item.icon}
-              </span>
-              {item.name}
-            </a>
-          ))}
-
-          {isAdmin && (
-            <a
-              href="/admin/users"
-              className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-sky-50 hover:text-sky-700"
-            >
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50 text-lg text-sky-600">
-                ♙
-              </span>
-              Quản lý nhân viên
-            </a>
-          )}
-        </nav>
-
-        <div className="mt-auto rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 to-blue-100 p-4">
-          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-lg text-sky-600 shadow-sm">
-            ✦
-          </div>
-          <p className="font-extrabold text-sky-800">CVISION Workspace</p>
-          <p className="mt-2 text-xs leading-5 text-sky-700">
-            Nền tảng quản lý ứng viên và kết nối doanh nghiệp.
+          <p className="mb-4 px-3 text-[10px] font-extrabold uppercase tracking-[0.2em] text-slate-500">
+            Workspace
           </p>
-        </div>
-      </aside>
 
-      {/* MAIN */}
-      <main className="min-w-0 flex-1 px-4 pb-4 pt-20 sm:px-5 sm:pb-5 md:p-8">
-        {/* HEADER */}
-        <header className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-sky-100 bg-white/90 p-5 shadow-sm backdrop-blur">
-          <div>
-            <p className="text-xs font-semibold text-sky-500">
-              Workspace / Dashboard
-            </p>
-            <h1 className="mt-2 text-2xl font-black text-slate-800 md:text-3xl">
-              Tổng quan tuyển dụng
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Theo dõi hoạt động giới thiệu ứng viên của CVISION.
+          <nav className="space-y-2">
+            {menu.map((item) => {
+              const active = pathname === item.href;
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`group flex items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-semibold transition ${
+                    active
+                      ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
+                      : "text-slate-300 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-lg">
+                    {item.icon}
+                  </span>
+                  {item.name}
+                </Link>
+              );
+            })}
+
+            {isAdmin && (
+              <Link
+                href="/admin/users"
+                className={`flex items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-semibold transition ${
+                  pathname === "/admin/users"
+                    ? "bg-blue-600 text-white"
+                    : "text-slate-300 hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-lg">
+                  ♙
+                </span>
+                Quản lý nhân viên
+              </Link>
+            )}
+          </nav>
+
+          <div className="mt-auto rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-lg">
+              ✦
+            </div>
+            <p className="font-bold">CVISION Workspace</p>
+            <p className="mt-2 text-xs leading-5 text-slate-400">
+              Nền tảng quản lý hoạt động và kết nối cơ hội nghề nghiệp.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-600 font-black text-white shadow-md shadow-sky-100">
+          <div className="mt-5 flex items-center gap-3 border-t border-white/10 pt-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 font-bold">
               {currentName.charAt(0).toUpperCase() || "C"}
             </div>
-
-            <div>
-              <p className="text-sm font-bold text-slate-800">
-                {loading ? "Đang tải..." : currentName}
-              </p>
-              <p className="text-xs font-medium text-sky-600">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold">{currentName || "Tài khoản"}</p>
+              <p className="text-xs text-slate-400">
                 {isAdmin ? "Quản trị viên" : "Recruiter"}
               </p>
             </div>
-
             <button
+              type="button"
               onClick={handleLogout}
-              className="ml-2 rounded-xl border border-sky-100 bg-sky-50 px-4 py-2.5 text-sm font-bold text-sky-700 transition hover:bg-sky-100"
+              title="Đăng xuất"
+              className="rounded-lg p-2 text-slate-400 transition hover:bg-red-500/10 hover:text-red-300"
             >
-              Đăng xuất
+              ↪
             </button>
           </div>
-        </header>
+        </aside>
 
-        {/* ERROR */}
-        {errorMessage && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            Không tải được dữ liệu: {errorMessage}
-          </div>
-        )}
-
-        {/* STATISTICS */}
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {stats.map((item) => (
-            <div
-              key={item.title}
-              className="group rounded-2xl border border-sky-100 bg-white p-5 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-sky-300 hover:shadow-lg hover:shadow-sky-100/70"
-            >
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-500">
-                  {item.title}
-                </p>
-                <span
-                  className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl font-bold ${item.accent} ${item.iconBg}`}
-                >
-                  {item.icon}
-                </span>
-              </div>
-
-              <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-800">
-                {loading ? "..." : item.value}
-              </h2>
-
-              <p className="mt-2 text-xs text-slate-400">{item.note}</p>
-            </div>
-          ))}
-        </section>
-
-        {/* RECRUITMENT STAGES */}
-        <section className="mt-8 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm md:p-6">
-          <div className="mb-6">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-500">
-              Recruitment Pipeline
-            </span>
-            <h2 className="mt-2 text-xl font-black text-slate-800">
-              Tiến độ tuyển dụng
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Số lượng hồ sơ tại từng giai đoạn.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            {stageCounts.map((stage) => (
-              <div
-                key={stage.name}
-                className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/80 to-white p-4"
-              >
-                <div className={`mb-4 h-1.5 rounded-full ${stage.color}`} />
-                <p className="min-h-10 text-sm font-semibold text-slate-600">
-                  {stage.name}
-                </p>
-                <p className="mt-2 text-2xl font-black text-slate-800">
-                  {loading ? "..." : stage.count}
-                </p>
-                <p className="text-xs text-slate-400">Hồ sơ</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-8 border-t border-sky-100 pt-6">
-            <h3 className="mb-5 text-sm font-extrabold text-slate-700">
-              Biểu đồ phân bổ hồ sơ theo giai đoạn
-            </h3>
-
-            <div className="space-y-5">
-              {stageCounts.map((stage) => (
-                <div
-                  key={`bar-${stage.name}`}
-                  className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[150px_1fr_44px]"
-                >
-                  <span className="text-sm font-medium text-slate-600">
-                    {stage.name}
-                  </span>
-
-                  <div className="h-3 overflow-hidden rounded-full bg-sky-50">
-                    <div
-                      className={`h-full rounded-full ${stage.color} transition-all duration-500`}
-                      style={{
-                        width: `${(stage.count / maxStageCount) * 100}%`,
-                      }}
-                    />
-                  </div>
-
-                  <span className="text-sm font-bold tabular-nums text-sky-700 sm:text-right">
-                    {loading ? "..." : stage.count}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* RECRUITER PERFORMANCE */}
-        {isAdmin && (
-          <section className="mt-8 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm md:p-6">
-            <div className="mb-6">
-              <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-500">
-                Team Performance
-              </span>
-              <h2 className="mt-2 text-xl font-black text-slate-800">
-                Hiệu suất Recruiter
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Thống kê hồ sơ được phân công và tỷ lệ chuyển đổi của từng nhân viên.
-              </p>
-            </div>
-
-            <div className="overflow-x-auto rounded-xl border border-sky-100">
-              <table className="w-full min-w-[950px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-sky-100 bg-sky-50 text-sky-800">
-                    <th className="px-3 py-4 font-bold">Recruiter</th>
-                    <th className="px-3 py-4 font-bold">Hồ sơ được giao</th>
-                    <th className="px-3 py-4 font-bold">Phỏng vấn</th>
-                    <th className="px-3 py-4 font-bold">Đàm phán</th>
-                    <th className="px-3 py-4 font-bold">Offer</th>
-                    <th className="px-3 py-4 font-bold">Đi làm</th>
-                    <th className="px-3 py-4 font-bold">Tỷ lệ Offer</th>
-                    <th className="px-3 py-4 font-bold">Tỷ lệ đi làm</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {recruiterStats.map((recruiter) => (
-                    <tr
-                      key={recruiter.id}
-                      className="border-b border-sky-50 transition hover:bg-sky-50/60"
-                    >
-                      <td className="px-3 py-4 font-semibold text-slate-700">
-                        {recruiter.full_name || "Chưa đặt tên"}
-                      </td>
-                      <td className="px-3 py-4">{recruiter.total}</td>
-                      <td className="px-3 py-4">{recruiter.interview}</td>
-                      <td className="px-3 py-4">{recruiter.negotiation}</td>
-                      <td className="px-3 py-4">{recruiter.offer}</td>
-                      <td className="px-3 py-4">{recruiter.onboard}</td>
-                      <td className="px-3 py-4 font-bold text-sky-700">
-                        {recruiter.offerRate}%
-                      </td>
-                      <td className="px-3 py-4 font-bold text-blue-700">
-                        {recruiter.onboardRate}%
-                      </td>
-                    </tr>
-                  ))}
-
-                  {recruiterStats.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={8}
-                        className="px-3 py-8 text-center text-slate-400"
-                      >
-                        Chưa có tài khoản Recruiter.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <p className="mt-3 text-xs leading-5 text-slate-400">
-              Tỷ lệ được tính trên tổng số hồ sơ đang được phân công cho từng Recruiter.
-            </p>
-          </section>
-        )}
-
-        {/* RECENT APPLICATIONS */}
-        <section className="mt-8 rounded-3xl border border-sky-100 bg-white p-5 shadow-sm md:p-6">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        {/* MAIN CONTENT */}
+        <main className="min-w-0 flex-1 px-4 pb-8 pt-[88px] sm:px-6 lg:ml-[250px] lg:px-8 lg:pt-8">
+          {/* TOP HEADER */}
+          <header className="mb-8 flex flex-wrap items-center justify-between gap-5">
             <div>
-              <span className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-sky-500">
-                Recent Applications
-              </span>
-              <h2 className="mt-2 text-xl font-black text-slate-800">
-                Hồ sơ tuyển dụng gần đây
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {isAdmin
-                  ? "Danh sách hồ sơ toàn hệ thống."
-                  : "Danh sách hồ sơ được phân công cho bạn."}
+              <div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-400">
+                <span>Workspace</span>
+                <span>/</span>
+                <span className="text-blue-600">Dashboard</span>
+              </div>
+              <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+                Tổng quan hoạt động
+              </h1>
+              <p className="mt-2 text-sm text-slate-500">
+                Xin chào, {currentName || "bạn"}! Chúc bạn một ngày làm việc hiệu quả.
               </p>
             </div>
 
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm ứng viên, vị trí, công ty..."
-              className="w-full rounded-xl border border-sky-100 bg-sky-50/50 px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100 sm:w-72"
-            />
-          </div>
+            <div className="flex items-center gap-3">
+              <div className="hidden rounded-xl border border-slate-200 bg-white px-4 py-3 text-right shadow-sm sm:block">
+                <p className="text-xs font-semibold text-slate-400">Hôm nay</p>
+                <p className="mt-1 text-sm font-bold capitalize text-slate-700">
+                  {formatDate()}
+                </p>
+              </div>
 
-          {loading ? (
-            <div className="py-10 text-center">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-sky-100 border-t-sky-500" />
-              <p className="mt-3 text-sm text-slate-400">
-                Đang tải dữ liệu...
-              </p>
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-lg font-black text-white shadow-lg shadow-blue-100">
+                {currentName.charAt(0).toUpperCase() || "C"}
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-sky-100">
-              <table className="w-full min-w-[700px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-sky-100 bg-sky-50 text-sky-800">
-                    <th className="px-3 py-4 font-bold">Ứng viên</th>
-                    <th className="px-3 py-4 font-bold">Vị trí</th>
-                    <th className="px-3 py-4 font-bold">Doanh nghiệp</th>
-                    <th className="px-3 py-4 font-bold">Giai đoạn</th>
-                  </tr>
-                </thead>
+          </header>
 
-                <tbody>
-                  {filtered.map((application) => (
-                    <tr
-                      key={application.id}
-                      className="border-b border-sky-50 transition hover:bg-sky-50/60"
-                    >
-                      <td className="px-3 py-4 font-semibold text-slate-700">
-                        {application.candidates?.full_name || "Chưa có tên"}
-                      </td>
-                      <td className="px-3 py-4 text-slate-600">
-                        {application.jobs?.title || "Chưa có vị trí"}
-                      </td>
-                      <td className="px-3 py-4 text-slate-600">
-                        {application.jobs?.companies?.name || "Chưa có công ty"}
-                      </td>
-                      <td className="px-3 py-4">
-                        <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700">
-                          {application.stage}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {filtered.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="px-3 py-8 text-center text-slate-400"
-                      >
-                        Chưa có hồ sơ tuyển dụng phù hợp.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+          {/* ERROR */}
+          {errorMessage && (
+            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              Không tải được dữ liệu: {errorMessage}
             </div>
           )}
-        </section>
 
-        <footer className="mt-8 pb-4 text-center text-xs text-slate-400">
-          CVISION Internal Management System © 2026
-        </footer>
-      </main>
+          {/* KPI CARDS */}
+          <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {stats.map((item) => (
+              <div
+                key={item.title}
+                className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-200/60"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-500">
+                    {item.title}
+                  </p>
+                  <div
+                    className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${item.background} ${item.color}`}
+                  >
+                    {item.icon}
+                  </div>
+                </div>
+
+                <div className="mt-5 flex items-end justify-between">
+                  <h2 className="text-3xl font-black tracking-tight text-slate-900">
+                    {loading ? "..." : item.value.toLocaleString("vi-VN")}
+                  </h2>
+                  <span className="rounded-lg bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-400">
+                    {item.trend}
+                  </span>
+                </div>
+
+                <p className="mt-2 text-xs text-slate-400">{item.note}</p>
+              </div>
+            ))}
+          </section>
+
+          {/* OVERVIEW GRID */}
+          <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
+            {/* PIPELINE CHART */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6 xl:col-span-2">
+              <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                    Recruitment Analytics
+                  </p>
+                  <h2 className="mt-2 text-xl font-black text-slate-900">
+                    Tiến độ tuyển dụng
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Phân bổ hồ sơ theo từng giai đoạn tuyển dụng
+                  </p>
+                </div>
+                <Link
+                  href="/admin/pipeline"
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+                >
+                  Xem chi tiết →
+                </Link>
+              </div>
+
+              <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {stageCounts.map((stage) => (
+                  <div
+                    key={stage.name}
+                    className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"
+                  >
+                    <div className={`mb-3 h-1.5 rounded-full ${stage.color}`} />
+                    <p className="text-xs font-semibold text-slate-500">
+                      {stage.name}
+                    </p>
+                    <p className="mt-1 text-2xl font-black text-slate-900">
+                      {loading ? "..." : stage.count}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t border-slate-100 pt-6">
+                <h3 className="mb-5 text-sm font-bold text-slate-700">
+                  Biểu đồ số lượng hồ sơ
+                </h3>
+
+                <div className="space-y-5">
+                  {stageCounts.map((stage) => (
+                    <div
+                      key={`bar-${stage.name}`}
+                      className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[125px_1fr_35px]"
+                    >
+                      <span className="text-xs font-semibold text-slate-500">
+                        {stage.name}
+                      </span>
+                      <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ${stage.color}`}
+                          style={{
+                            width: `${(stage.count / maxStageCount) * 100}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="text-right text-sm font-bold tabular-nums text-slate-700">
+                        {loading ? "..." : stage.count}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* CONVERSION SUMMARY */}
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                Performance
+              </p>
+              <h2 className="mt-2 text-xl font-black text-slate-900">
+                Hiệu quả tuyển dụng
+              </h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Kết quả chuyển đổi hồ sơ
+              </p>
+
+              <div className="my-8 flex flex-col items-center">
+                <div
+                  className="relative flex h-44 w-44 items-center justify-center rounded-full"
+                  style={{
+                    background: `conic-gradient(#2563eb ${conversionRate * 3.6}deg, #eaf0f8 0deg)`,
+                  }}
+                >
+                  <div className="flex h-36 w-36 flex-col items-center justify-center rounded-full bg-white">
+                    <span className="text-4xl font-black text-slate-900">
+                      {loading ? "..." : `${conversionRate}%`}
+                    </span>
+                    <span className="mt-1 text-xs font-medium text-slate-400">
+                      Tỷ lệ đi làm
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+                    <span className="text-sm text-slate-500">Phỏng vấn</span>
+                  </div>
+                  <span className="font-bold text-slate-800">
+                    {loading ? "..." : interviewCount}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    <span className="text-sm text-slate-500">Nhận Offer</span>
+                  </div>
+                  <span className="font-bold text-slate-800">
+                    {loading ? "..." : offerCount}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-teal-500" />
+                    <span className="text-sm text-slate-500">Đã đi làm</span>
+                  </div>
+                  <span className="font-bold text-slate-800">
+                    {loading ? "..." : onboardCount}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* RECRUITER PERFORMANCE */}
+          {isAdmin && (
+            <section className="mb-8 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                    Team Performance
+                  </p>
+                  <h2 className="mt-2 text-xl font-black text-slate-900">
+                    Hiệu suất nhân viên
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Theo dõi kết quả công việc của từng Recruiter
+                  </p>
+                </div>
+                <Link
+                  href="/admin/users"
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-blue-50 hover:text-blue-600"
+                >
+                  Quản lý nhân viên →
+                </Link>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[780px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                      <th className="rounded-l-lg px-4 py-4 font-bold">Nhân viên</th>
+                      <th className="px-4 py-4 font-bold">Hồ sơ được giao</th>
+                      <th className="px-4 py-4 font-bold">Phỏng vấn</th>
+                      <th className="px-4 py-4 font-bold">Đàm phán</th>
+                      <th className="px-4 py-4 font-bold">Offer</th>
+                      <th className="px-4 py-4 font-bold">Đi làm</th>
+                      <th className="px-4 py-4 font-bold">Tỷ lệ Offer</th>
+                      <th className="rounded-r-lg px-4 py-4 font-bold">Tỷ lệ đi làm</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {recruiterStats.map((recruiter) => (
+                      <tr
+                        key={recruiter.id}
+                        className="border-b border-slate-50 transition hover:bg-slate-50"
+                      >
+                        <td className="px-4 py-4 font-semibold text-slate-800">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 font-bold text-blue-600">
+                              {(recruiter.full_name || "R").charAt(0).toUpperCase()}
+                            </div>
+                            {recruiter.full_name || "Chưa đặt tên"}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 font-semibold">{recruiter.total}</td>
+                        <td className="px-4 py-4">{recruiter.interview}</td>
+                        <td className="px-4 py-4">{recruiter.negotiation}</td>
+                        <td className="px-4 py-4 font-semibold text-emerald-600">
+                          {recruiter.offer}
+                        </td>
+                        <td className="px-4 py-4 font-semibold text-teal-600">
+                          {recruiter.onboard}
+                        </td>
+                        <td className="px-4 py-4 font-semibold text-blue-600">
+                          {recruiter.offerRate}%
+                        </td>
+                        <td className="px-4 py-4 font-semibold text-teal-600">
+                          {recruiter.onboardRate}%
+                        </td>
+                      </tr>
+                    ))}
+
+                    {recruiterStats.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
+                          Chưa có tài khoản Recruiter.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="mt-4 text-xs text-slate-400">
+                Tỷ lệ được tính trên tổng số hồ sơ đang được phân công cho từng Recruiter.
+              </p>
+            </section>
+          )}
+
+          {/* RECENT APPLICATIONS */}
+          <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                  Recent Applications
+                </p>
+                <h2 className="mt-2 text-xl font-black text-slate-900">
+                  Hồ sơ tuyển dụng gần đây
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  {isAdmin
+                    ? "Danh sách hồ sơ toàn hệ thống."
+                    : "Danh sách hồ sơ được phân công cho bạn."}
+                </p>
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  ⌕
+                </span>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Tìm ứng viên, vị trí, công ty..."
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-9 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                />
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="py-12 text-center">
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" />
+                <p className="mt-3 text-sm text-slate-400">
+                  Đang tải dữ liệu...
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                      <th className="rounded-l-lg px-4 py-4 font-bold">Ứng viên</th>
+                      <th className="px-4 py-4 font-bold">Vị trí</th>
+                      <th className="px-4 py-4 font-bold">Doanh nghiệp</th>
+                      <th className="rounded-r-lg px-4 py-4 font-bold">Giai đoạn</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {filtered.slice(0, 10).map((application) => {
+                      const stage = stages.find(
+                        (item) => item.name === application.stage
+                      );
+
+                      return (
+                        <tr
+                          key={application.id}
+                          className="border-b border-slate-50 transition hover:bg-slate-50"
+                        >
+                          <td className="px-4 py-4 font-semibold text-slate-800">
+                            {application.candidates?.full_name || "Chưa có tên"}
+                          </td>
+                          <td className="px-4 py-4 text-slate-600">
+                            {application.jobs?.title || "Chưa có vị trí"}
+                          </td>
+                          <td className="px-4 py-4 text-slate-600">
+                            {application.jobs?.companies?.name || "Chưa có công ty"}
+                          </td>
+                          <td className="px-4 py-4">
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${
+                                stage
+                                  ? `${stage.light} ${stage.text}`
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {application.stage}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {filtered.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-10 text-center text-slate-400">
+                          Không có hồ sơ tuyển dụng phù hợp.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!loading && filtered.length > 10 && (
+              <p className="mt-4 text-center text-xs text-slate-400">
+                Đang hiển thị 10 trên {filtered.length} hồ sơ phù hợp.
+              </p>
+            )}
+          </section>
+
+          <footer className="mt-8 text-center text-xs text-slate-400">
+            CVISION Internal Management System © 2026
+          </footer>
+        </main>
+      </div>
     </div>
   );
 }
