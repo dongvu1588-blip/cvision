@@ -210,7 +210,7 @@ export default function Home() {
               href="/admin/login"
               className="rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-xs font-bold text-blue-600 shadow-sm transition hover:border-blue-400 hover:bg-sky-50 sm:px-4 sm:text-sm"
             >
-              Đăng nhập nội bộ
+              Đăng nhập
             </Link>
             <button
               type="button"
