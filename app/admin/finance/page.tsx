@@ -125,6 +125,32 @@ export default function FinancePage() {
     0
   );
 
+  // Tổng hợp doanh thu theo từng tháng từ tất cả khoản thu đã xác nhận.
+  const monthlySummary = useMemo(() => {
+    const totals = new Map<string, { total: number; count: number }>();
+
+    revenues
+      .filter((item) => item.status === "confirmed" && item.payment_date)
+      .forEach((item) => {
+        const key = item.payment_date.slice(0, 7);
+        const current = totals.get(key) || { total: 0, count: 0 };
+        current.total += Number(item.amount || 0);
+        current.count += 1;
+        totals.set(key, current);
+      });
+
+    return Array.from(totals.entries())
+      .map(([monthKey, value]) => ({ monthKey, ...value }))
+      .sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+  }, [revenues]);
+
+  const allMonthsTotal = monthlySummary.reduce((sum, item) => sum + item.total, 0);
+
+  const monthLabel = (value: string) => {
+    const [year, monthNumber] = value.split("-");
+    return `Tháng ${monthNumber}/${year}`;
+  };
+
   function openAddForm() {
     const today = new Date();
     const todayText = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -390,6 +416,66 @@ export default function FinancePage() {
                       <td colSpan={3} className="px-5 py-4 font-extrabold text-slate-700">Tổng thu nhập tháng</td>
                       <td className="px-5 py-4 text-right font-black text-blue-700">{money(monthlyTotal)}</td>
                       <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 p-5">
+              <h2 className="font-extrabold text-slate-900">Tổng doanh thu các tháng</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Tổng hợp tất cả khoản thu đã xác nhận, được cộng theo tháng.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-blue-50/70 px-5 py-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-600">Tổng doanh thu tất cả các tháng</p>
+                <p className="mt-1 text-2xl font-black text-blue-700">{money(allMonthsTotal)}</p>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-blue-700">
+                {monthlySummary.length} tháng có doanh thu
+              </span>
+            </div>
+
+            {loading ? (
+              <div className="p-8 text-center text-sm text-slate-400">Đang tải dữ liệu...</div>
+            ) : monthlySummary.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-400">
+                Chưa có dữ liệu doanh thu để tổng hợp.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[420px] text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-5 py-4 font-bold">Tháng</th>
+                      <th className="px-5 py-4 text-center font-bold">Số khoản thu</th>
+                      <th className="px-5 py-4 text-right font-bold">Tổng doanh thu</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthlySummary.map((item) => (
+                      <tr key={item.monthKey} className="border-t border-slate-100 hover:bg-slate-50">
+                        <td className="px-5 py-4 font-semibold text-slate-700">{monthLabel(item.monthKey)}</td>
+                        <td className="px-5 py-4 text-center text-slate-500">{item.count}</td>
+                        <td className="px-5 py-4 text-right font-bold tabular-nums text-blue-700">
+                          {money(item.total)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="border-t-2 border-slate-200 bg-slate-50">
+                    <tr>
+                      <td colSpan={2} className="px-5 py-4 font-extrabold text-slate-700">
+                        Tổng doanh thu
+                      </td>
+                      <td className="px-5 py-4 text-right font-black text-blue-700">
+                        {money(allMonthsTotal)}
+                      </td>
                     </tr>
                   </tfoot>
                 </table>
