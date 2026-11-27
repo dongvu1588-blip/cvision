@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -12,12 +12,16 @@ type Profile = {
   role: string | null;
 };
 
+type MonthlyRevenue = {
+  month: string;
+  total: number;
+  count: number;
+};
+
 type FinanceSummary = {
   revenue: number;
-  expenses: number;
-  pendingCommissions: number;
-  paidCommissions: number;
-  profit: number;
+  monthlyRevenue: MonthlyRevenue[];
+  totalRevenue: number;
 };
 
 const menu = [
@@ -54,10 +58,8 @@ export default function Dashboard() {
 
   const [finance, setFinance] = useState<FinanceSummary>({
     revenue: 0,
-    expenses: 0,
-    pendingCommissions: 0,
-    paidCommissions: 0,
-    profit: 0,
+    monthlyRevenue: [],
+    totalRevenue: 0,
   });
 
   const [loading, setLoading] = useState(true);
@@ -126,109 +128,47 @@ export default function Dashboard() {
       setJobCount(jobsResult.count || 0);
       setCandidateCount(candidatesResult.count || 0);
 
-      // 4. Chỉ Admin mới tải dữ liệu tài chính
+      // 4. Chỉ Admin mới tải các khoản thu đã xác nhận.
+      // Doanh thu được nhập thủ công tại trang Quản lý tài chính.
       if (currentProfile.role === "admin") {
+        const { data: revenueRows, error: revenueError } = await supabase
+          .from("finance_revenues")
+          .select("amount, payment_date")
+          .eq("status", "confirmed")
+          .order("payment_date", { ascending: false });
+
+        if (revenueError) {
+          throw new Error("Không tải được doanh thu: " + revenueError.message);
+        }
+
+        const grouped = new Map<string, { total: number; count: number }>();
+        (revenueRows || []).forEach((item) => {
+          if (!item.payment_date) return;
+          const monthKey = String(item.payment_date).slice(0, 7);
+          const current = grouped.get(monthKey) || { total: 0, count: 0 };
+          current.total += Number(item.amount || 0);
+          current.count += 1;
+          grouped.set(monthKey, current);
+        });
+
+        const monthlyRevenue = Array.from(grouped.entries())
+          .map(([month, value]) => ({ month, ...value }))
+          .sort((a, b) => b.month.localeCompare(a.month));
+
         const now = new Date();
-        const year = now.getFullYear();
-        const monthNumber = now.getMonth();
-
-        const monthStart = new Date(
-          year,
-          monthNumber,
-          1
-        ).toISOString();
-
-        const nextMonthStart = new Date(
-          year,
-          monthNumber + 1,
-          1
-        ).toISOString();
-
-        const [revenueResult, expenseResult, commissionResult] =
-          await Promise.all([
-            supabase
-              .from("finance_revenues")
-              .select("amount")
-              .eq("status", "confirmed")
-              .gte("payment_date", monthStart.slice(0, 10))
-              .lt("payment_date", nextMonthStart.slice(0, 10)),
-
-            supabase
-              .from("finance_expenses")
-              .select("amount")
-              .gte("expense_date", monthStart.slice(0, 10))
-              .lt("expense_date", nextMonthStart.slice(0, 10)),
-
-            supabase
-              .from("cv_commissions")
-              .select("amount, status, approved_at")
-              .gte("approved_at", monthStart)
-              .lt("approved_at", nextMonthStart),
-          ]);
-
-        if (revenueResult.error) {
-          throw new Error(
-            "Không tải được doanh thu: " +
-              revenueResult.error.message
-          );
-        }
-
-        if (expenseResult.error) {
-          throw new Error(
-            "Không tải được chi phí: " +
-              expenseResult.error.message
-          );
-        }
-
-        if (commissionResult.error) {
-          throw new Error(
-            "Không tải được tiền thưởng: " +
-              commissionResult.error.message
-          );
-        }
-
-        const revenue = (revenueResult.data || []).reduce(
-          (sum, item) => sum + Number(item.amount || 0),
+        const currentMonth = `${now.getFullYear()}-${String(
+          now.getMonth() + 1
+        ).padStart(2, "0")}`;
+        const revenue =
+          monthlyRevenue.find((item) => item.month === currentMonth)?.total || 0;
+        const totalRevenue = monthlyRevenue.reduce(
+          (sum, item) => sum + item.total,
           0
         );
 
-        const expenses = (expenseResult.data || []).reduce(
-          (sum, item) => sum + Number(item.amount || 0),
-          0
-        );
-
-        const pendingCommissions = (commissionResult.data || [])
-          .filter((item) => item.status === "pending")
-          .reduce(
-            (sum, item) => sum + Number(item.amount || 0),
-            0
-          );
-
-        const paidCommissions = (commissionResult.data || [])
-          .filter((item) => item.status === "paid")
-          .reduce(
-            (sum, item) => sum + Number(item.amount || 0),
-            0
-          );
-
-        const totalCosts =
-          expenses + pendingCommissions + paidCommissions;
-
-        setFinance({
-          revenue,
-          expenses,
-          pendingCommissions,
-          paidCommissions,
-          profit: revenue - totalCosts,
-        });
+        setFinance({ revenue, monthlyRevenue, totalRevenue });
       } else {
-        setFinance({
-          revenue: 0,
-          expenses: 0,
-          pendingCommissions: 0,
-          paidCommissions: 0,
-          profit: 0,
-        });
+        setFinance({ revenue: 0, monthlyRevenue: [], totalRevenue: 0 });
       }
     } catch (error) {
       setErrorMessage(
@@ -544,103 +484,113 @@ export default function Dashboard() {
 
           {/* FINANCE OVERVIEW - ADMIN ONLY */}
           {isAdmin && (
-            <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
-
-              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-teal-600">
-                    Finance Overview
-                  </p>
-
-                  <h2 className="mt-2 text-xl font-black text-slate-900">
-                    Tổng quan tài chính
-                  </h2>
-
-                  <p className="mt-1 text-sm text-slate-400">
-                    Số liệu tài chính trong tháng hiện tại.
-                  </p>
+            <section className="space-y-5">
+              <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm sm:p-6">
+                <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                      Finance Overview
+                    </p>
+                    <h2 className="mt-2 text-xl font-black text-slate-900">
+                      Tổng quan tài chính
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Tổng thu nhập đã ghi nhận trong tháng hiện tại.
+                    </p>
+                  </div>
+                  <Link
+                    href="/admin/finance"
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700"
+                  >
+                    Chi tiết tài chính →
+                  </Link>
                 </div>
-
-                <Link
-                  href="/admin/finance"
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-teal-50 hover:text-teal-700"
-                >
-                  Chi tiết tài chính →
-                </Link>
-              </div>
-
-              {/* FINANCE CARDS */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
-                <div className="rounded-xl bg-emerald-50 p-5">
-                  <p className="text-sm font-semibold text-slate-500">
-                    Doanh thu đã xác nhận
+                <div className="rounded-xl bg-blue-50 p-5 sm:p-6">
+                  <p className="text-sm font-semibold text-slate-600">
+                    Tổng thu nhập tháng hiện tại
                   </p>
-
-                  <p className="mt-3 text-xl font-black text-emerald-700 sm:text-2xl">
+                  <p className="mt-3 text-3xl font-black text-blue-700 sm:text-4xl">
                     {loading ? "..." : money(finance.revenue)}
                   </p>
-                </div>
-
-                <div className="rounded-xl bg-amber-50 p-5">
-                  <p className="text-sm font-semibold text-slate-500">
-                    Tổng chi phí
-                  </p>
-
-                  <p className="mt-3 text-xl font-black text-amber-700 sm:text-2xl">
-                    {loading ? "..." : money(finance.expenses)}
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-blue-50 p-5">
-                  <p className="text-sm font-semibold text-slate-500">
-                    Chi phí thưởng nhân viên
-                  </p>
-
-                  <p className="mt-3 text-xl font-black text-blue-700 sm:text-2xl">
-                    {loading
-                      ? "..."
-                      : money(
-                          finance.pendingCommissions +
-                            finance.paidCommissions
-                        )}
-                  </p>
-                </div>
-
-                <div
-                  className={`rounded-xl p-5 ${
-                    finance.profit >= 0
-                      ? "bg-teal-50"
-                      : "bg-red-50"
-                  }`}
-                >
-                  <p className="text-sm font-semibold text-slate-500">
-                    Lợi nhuận dự kiến
-                  </p>
-
-                  <p
-                    className={`mt-3 text-xl font-black sm:text-2xl ${
-                      finance.profit >= 0
-                        ? "text-teal-700"
-                        : "text-red-700"
-                    }`}
-                  >
-                    {loading ? "..." : money(finance.profit)}
+                  <p className="mt-2 text-xs text-slate-500">
+                    Chỉ tính các khoản thu đã xác nhận.
                   </p>
                 </div>
               </div>
 
-              <p className="mt-4 text-xs leading-5 text-slate-400">
-                Chi phí thưởng bao gồm thưởng đang chờ thanh toán (
-                {loading
-                  ? "..."
-                  : money(finance.pendingCommissions)}
-                ) và đã thanh toán (
-                {loading
-                  ? "..."
-                  : money(finance.paidCommissions)}
-                ). Số liệu tài chính chỉ hiển thị với Admin.
-              </p>
+              <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
+                <div className="border-b border-slate-100 p-5 sm:p-6">
+                  <h3 className="font-extrabold text-slate-900">
+                    Tổng doanh thu các tháng
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Thống kê các khoản thu thủ công đã xác nhận theo từng tháng.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-blue-50/70 px-5 py-4 sm:px-6">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-600">
+                      Tổng doanh thu tất cả các tháng
+                    </p>
+                    <p className="mt-1 text-2xl font-black text-blue-700">
+                      {loading ? "..." : money(finance.totalRevenue)}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-blue-700">
+                    {finance.monthlyRevenue.length} tháng có doanh thu
+                  </span>
+                </div>
+
+                {loading ? (
+                  <div className="p-8 text-center text-sm text-slate-400">
+                    Đang tải dữ liệu...
+                  </div>
+                ) : finance.monthlyRevenue.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-slate-400">
+                    Chưa có dữ liệu doanh thu.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[420px] text-left text-sm">
+                      <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                        <tr>
+                          <th className="px-5 py-4 font-bold">Tháng</th>
+                          <th className="px-5 py-4 text-center font-bold">Số khoản thu</th>
+                          <th className="px-5 py-4 text-right font-bold">Tổng doanh thu</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {finance.monthlyRevenue.map((item) => {
+                          const [year, month] = item.month.split("-");
+                          return (
+                            <tr key={item.month} className="border-t border-slate-100">
+                              <td className="px-5 py-4 font-semibold text-slate-700">
+                                Tháng {month}/{year}
+                              </td>
+                              <td className="px-5 py-4 text-center text-slate-500">
+                                {formatNumber(item.count)}
+                              </td>
+                              <td className="px-5 py-4 text-right font-bold tabular-nums text-blue-700">
+                                {money(item.total)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="border-t-2 border-slate-200 bg-slate-50">
+                        <tr>
+                          <td colSpan={2} className="px-5 py-4 font-extrabold text-slate-700">
+                            Tổng doanh thu
+                          </td>
+                          <td className="px-5 py-4 text-right font-black text-blue-700">
+                            {money(finance.totalRevenue)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
             </section>
           )}
 
