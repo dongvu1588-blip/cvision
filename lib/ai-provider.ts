@@ -9,9 +9,11 @@ type AIResult = {
   provider: AIProvider;
 };
 
-type PdfInput = {
+type FileInput = {
   base64: string;
   fileName: string;
+  mimeType: string;
+  extractedText?: string;
 };
 
 const GEMINI_PRIMARY_MODEL = "gemini-3.5-flash-lite";
@@ -65,7 +67,6 @@ function normalizeJsonText(text: string) {
   }
 }
 
-// Chỉ retry với lỗi tạm thời, không retry lỗi API Key hoặc quyền truy cập.
 function isRetryableError(error: unknown) {
   const details = errorInfo(error);
 
@@ -84,11 +85,11 @@ function isRetryableError(error: unknown) {
   return rateLimit || temporary;
 }
 
-// Gọi một model Gemini cụ thể.
+// Gemini hỗ trợ file trực tiếp hoặc nội dung đã được trích xuất.
 async function callGeminiModel(
   model: string,
   prompt: string,
-  pdf?: PdfInput
+  file?: FileInput
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -98,17 +99,25 @@ async function callGeminiModel(
 
   const ai = new GoogleGenAI({ apiKey });
 
-  const contents = pdf
+  const contents = file
     ? [
         {
           role: "user",
           parts: [
-            {
-              inlineData: {
-                mimeType: "application/pdf",
-                data: pdf.base64,
-              },
-            },
+            ...(file.extractedText
+              ? [
+                  {
+                    text: `NỘI DUNG ĐÃ TRÍCH XUẤT TỪ FILE ${file.fileName}:\n\n${file.extractedText}`,
+                  },
+                ]
+              : [
+                  {
+                    inlineData: {
+                      mimeType: file.mimeType,
+                      data: file.base64,
+                    },
+                  },
+                ]),
             {
               text: prompt,
             },
@@ -172,13 +181,13 @@ async function callGeminiModel(
 // Gemini chính -> Gemini dự phòng.
 async function callGeminiWithBackup(
   prompt: string,
-  pdf?: PdfInput
+  file?: FileInput
 ): Promise<string> {
   try {
     const result = await callGeminiModel(
       GEMINI_PRIMARY_MODEL,
       prompt,
-      pdf
+      file
     );
 
     console.log("[CVISION] Primary Gemini succeeded.");
@@ -194,7 +203,7 @@ async function callGeminiWithBackup(
   const result = await callGeminiModel(
     GEMINI_BACKUP_MODEL,
     prompt,
-    pdf
+    file
   );
 
   console.log("[CVISION] Backup Gemini succeeded.");
@@ -205,7 +214,7 @@ async function callGeminiWithBackup(
 // OpenAI dự phòng cuối cùng.
 async function callOpenAI(
   prompt: string,
-  pdf?: PdfInput
+  file?: FileInput
 ): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -219,25 +228,61 @@ async function callOpenAI(
     maxRetries: 0,
   });
 
-  const input = pdf
-    ? [
+  let input: any = prompt;
+
+  if (file) {
+    if (file.extractedText) {
+      input = [
         {
-          role: "user" as const,
+          role: "user",
           content: [
             {
-              type: "input_file" as const,
-              filename: pdf.fileName,
-              file_data: `data:application/pdf;base64,${pdf.base64}`,
-              detail: "auto" as const,
+              type: "input_text",
+              text: `NỘI DUNG ĐÃ TRÍCH XUẤT TỪ FILE ${file.fileName}:\n\n${file.extractedText}`,
             },
             {
-              type: "input_text" as const,
+              type: "input_text",
               text: prompt,
             },
           ],
         },
-      ]
-    : prompt;
+      ];
+    } else if (file.mimeType.startsWith("image/")) {
+      input = [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_image",
+              image_url: `data:${file.mimeType};base64,${file.base64}`,
+              detail: "high",
+            },
+            {
+              type: "input_text",
+              text: prompt,
+            },
+          ],
+        },
+      ];
+    } else {
+      input = [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_file",
+              filename: file.fileName,
+              file_data: `data:${file.mimeType};base64,${file.base64}`,
+            },
+            {
+              type: "input_text",
+              text: prompt,
+            },
+          ],
+        },
+      ];
+    }
+  }
 
   console.log(
     "[CVISION] Switching to OpenAI fallback:",
@@ -288,13 +333,13 @@ async function callOpenAI(
 // Bộ điều phối: Gemini chính -> Gemini dự phòng -> OpenAI.
 async function generateWithFallback(
   prompt: string,
-  pdf?: PdfInput
+  file?: FileInput
 ): Promise<AIResult> {
   let geminiError: unknown;
 
   if (process.env.GEMINI_API_KEY) {
     try {
-      const text = await callGeminiWithBackup(prompt, pdf);
+      const text = await callGeminiWithBackup(prompt, file);
 
       return {
         text,
@@ -319,7 +364,7 @@ async function generateWithFallback(
   }
 
   try {
-    const text = await callOpenAI(prompt, pdf);
+    const text = await callOpenAI(prompt, file);
 
     return {
       text,
@@ -339,15 +384,19 @@ async function generateWithFallback(
   }
 }
 
-// API đọc và dịch PDF.
+// API đọc và dịch CV đa định dạng.
 export async function generateCvJson(
   prompt: string,
   base64: string,
-  fileName: string
+  fileName: string,
+  mimeType = "application/pdf",
+  extractedText?: string
 ): Promise<AIResult> {
   return generateWithFallback(prompt, {
     base64,
     fileName,
+    mimeType,
+    extractedText,
   });
 }
 
