@@ -75,6 +75,26 @@ export default function AIJobMatcher() {
     loadJobs();
   }, []);
 
+  const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+  const SUPPORTED_EXTENSIONS = [
+    "pdf",
+    "docx",
+    "xlsx",
+    "xls",
+    "pptx",
+    "jpg",
+    "jpeg",
+    "png",
+    "webp",
+    "txt",
+    "csv",
+    "rtf",
+  ];
+
+  const ACCEPTED_FILE_TYPES =
+    ".pdf,.docx,.xlsx,.xls,.pptx,.jpg,.jpeg,.png,.webp,.txt,.csv,.rtf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/jpeg,image/png,image/webp,text/plain,text/csv,application/rtf";
+
   function handleFileChange(selectedFile: File | null) {
     setError("");
     setConsent(false);
@@ -88,19 +108,19 @@ export default function AIJobMatcher() {
       return;
     }
 
-    const isPdf =
-      selectedFile.type === "application/pdf" ||
-      selectedFile.name.toLowerCase().endsWith(".pdf");
+    const extension = selectedFile.name.split(".").pop()?.toLowerCase() || "";
 
-    if (!isPdf) {
+    if (!SUPPORTED_EXTENSIONS.includes(extension)) {
       setFile(null);
-      setError("Chỉ chấp nhận file CV định dạng PDF.");
+      setError(
+        "Định dạng chưa được hỗ trợ. Vui lòng chọn PDF, DOCX, XLSX, XLS, PPTX, JPG, JPEG, PNG, WEBP, TXT, CSV hoặc RTF."
+      );
       return;
     }
 
-    if (selectedFile.size === 0 || selectedFile.size > 10 * 1024 * 1024) {
+    if (selectedFile.size === 0 || selectedFile.size > MAX_FILE_SIZE) {
       setFile(null);
-      setError("File PDF phải lớn hơn 0 và không vượt quá 10 MB.");
+      setError("File phải lớn hơn 0 và không vượt quá 20 MB.");
       return;
     }
 
@@ -109,7 +129,7 @@ export default function AIJobMatcher() {
 
   async function analyzeCV() {
     if (!file) {
-      setError("Vui lòng chọn file CV PDF trước.");
+      setError("Vui lòng chọn file CV trước.");
       return;
     }
 
@@ -130,7 +150,7 @@ export default function AIJobMatcher() {
     setSummary("");
 
     try {
-      // BƯỚC 1: Gửi PDF cho AI đọc CV
+      // BƯỚC 1: Gửi file CV cho AI đọc
       const formData = new FormData();
       formData.append("file", file);
 
@@ -248,7 +268,7 @@ export default function AIJobMatcher() {
           </h2>
 
           <p className="mt-1 text-sm text-slate-500">
-            Tải CV PDF để AI tự động đọc hồ sơ và tìm vị trí phù hợp trong hệ thống.
+            Tải CV để AI tự động đọc hồ sơ và tìm vị trí phù hợp trong hệ thống.
           </p>
         </div>
 
@@ -267,22 +287,23 @@ export default function AIJobMatcher() {
           </h3>
 
           <p className="mt-1 text-xs text-slate-500">
-            Hỗ trợ PDF, dung lượng tối đa 10 MB
+            Hỗ trợ PDF, DOCX, XLSX, XLS, PPTX, JPG, PNG, WEBP, TXT, CSV, RTF · Tối đa 20 MB
           </p>
         </div>
 
         <div className="mt-4 flex flex-col items-center gap-3">
           <label className="cursor-pointer rounded-xl bg-violet-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-violet-700">
-            📁 Chọn file CV PDF
+            📁 Chọn file CV
 
             <input
               type="file"
-              accept=".pdf,application/pdf"
+              accept={ACCEPTED_FILE_TYPES}
               className="hidden"
               disabled={loading}
-              onChange={(e) =>
-                handleFileChange(e.target.files?.[0] || null)
-              }
+              onChange={(e) => {
+                handleFileChange(e.target.files?.[0] || null);
+                e.currentTarget.value = "";
+              }}
             />
           </label>
 
