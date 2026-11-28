@@ -1,12 +1,26 @@
-
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const CONSENT_POLICY_VERSION = "1.0";
 
 const CONSENT_TEXT =
   "Tôi đã đọc và đồng ý với Chính sách bảo mật CVISION. Tôi đồng ý để CVISION đọc, phân tích và lưu CV cùng thông tin liên hệ nhằm tư vấn, giới thiệu việc làm và cho phép bộ phận tuyển dụng CVISION liên hệ khi phù hợp.";
+
+const MIME_TYPES: Record<string, string> = {
+  pdf: "application/pdf",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xls: "application/vnd.ms-excel",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  txt: "text/plain",
+  csv: "text/csv",
+  rtf: "application/rtf",
+};
 
 function text(value: unknown, maxLength = 5000): string | null {
   if (value === null || value === undefined) return null;
@@ -16,6 +30,24 @@ function text(value: unknown, maxLength = 5000): string | null {
     : String(value);
 
   return result.trim().slice(0, maxLength) || null;
+}
+
+function getExtension(fileName: string): string {
+  return fileName.split(".").pop()?.toLowerCase() || "";
+}
+
+function getSafeFileName(fileName: string): string {
+  const extension = getExtension(fileName);
+  const originalBase = fileName.slice(0, -(extension.length + 1));
+
+  const safeBase =
+    originalBase
+      .normalize("NFKD")
+      .replace(/[^\w.-]+/g, "_")
+      .replace(/^[_\.]+|[_\.]+$/g, "")
+      .slice(-80) || "cv";
+
+  return `${safeBase}.${extension}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -54,10 +86,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (
-      formData.get("consent_policy_version") !==
-      CONSENT_POLICY_VERSION
-    ) {
+    if (formData.get("consent_policy_version") !== CONSENT_POLICY_VERSION) {
       return NextResponse.json(
         {
           success: false,
@@ -77,35 +106,72 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (file.size <= 0 || file.size > MAX_FILE_SIZE) {
+    const extension = getExtension(file.name);
+    const contentType = MIME_TYPES[extension];
+
+    if (!contentType) {
       return NextResponse.json(
         {
           success: false,
-          error: "File CV phải lớn hơn 0 và không vượt quá 10 MB.",
+          error:
+            "Định dạng chưa được hỗ trợ. Vui lòng sử dụng PDF, DOCX, XLSX, XLS, PPTX, JPG, JPEG, PNG, WEBP, TXT, CSV hoặc RTF.",
         },
         { status: 400 }
       );
     }
 
-    const isPdf =
-      file.type === "application/pdf" ||
-      file.name.toLowerCase().endsWith(".pdf");
-
-    if (!isPdf) {
+    if (file.size <= 0 || file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { success: false, error: "Chỉ chấp nhận CV định dạng PDF." },
+        {
+          success: false,
+          error: "File CV phải lớn hơn 0 và không vượt quá 20 MB.",
+        },
         { status: 400 }
       );
     }
 
     const bytes = Buffer.from(await file.arrayBuffer());
 
+    // Kiểm tra chữ ký đối với một số định dạng phổ biến.
+    // Không dùng file.type do trình duyệt cung cấp làm căn cứ duy nhất.
     if (
-      bytes.length < 5 ||
-      bytes.subarray(0, 5).toString("ascii") !== "%PDF-"
+      extension === "pdf" &&
+      (bytes.length < 5 ||
+        bytes.subarray(0, 5).toString("ascii") !== "%PDF-")
     ) {
       return NextResponse.json(
-        { success: false, error: "File tải lên không phải PDF hợp lệ." },
+        { success: false, error: "Nội dung file không đúng định dạng PDF." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      ["jpg", "jpeg"].includes(extension) &&
+      !(bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Nội dung file không đúng định dạng JPG/JPEG." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      extension === "png" &&
+      bytes.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a"
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Nội dung file không đúng định dạng PNG." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      extension === "webp" &&
+      (bytes.subarray(0, 4).toString("ascii") !== "RIFF" ||
+        bytes.subarray(8, 12).toString("ascii") !== "WEBP")
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Nội dung file không đúng định dạng WEBP." },
         { status: 400 }
       );
     }
@@ -147,9 +213,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const safeFileName = file.name
-      .replace(/[^a-zA-Z0-9._-]/g, "_")
-      .slice(-100);
+    const safeFileName = getSafeFileName(file.name);
 
     uploadedPath =
       `public-ai/${Date.now()}-${crypto.randomUUID()}-${safeFileName}`;
@@ -157,7 +221,7 @@ export async function POST(request: NextRequest) {
     const { error: uploadError } = await supabase.storage
       .from("candidate-cvs")
       .upload(uploadedPath, bytes, {
-        contentType: "application/pdf",
+        contentType,
         upsert: false,
       });
 
@@ -236,6 +300,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       candidate_id: data.id,
+      fileName: file.name,
+      fileType: extension,
       message: "CV đã được gửi về CVISION.",
     });
   } catch (error) {
